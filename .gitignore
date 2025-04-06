@@ -1,0 +1,58 @@
+# Dependencies and build
+node_modules
+.next
+out
+build
+dist
+
+# Environment variables
+.env*
+!.env.example
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local files
+.DS_Store
+*.pem
+.vercel
+
+# Testing
+coverage
+
+# IDE
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Misc
+.env*.local
+
+
+.env.example 
+
+README.md 
+
+package.json 
+
+next.config.mjs 
+
+tsconfig.json 
+
+app/ 
+
+components/ 
+
+lib/ 
+
+public/ 
+
+styles/ 
+
+utils/ 
+
+vercel.json
