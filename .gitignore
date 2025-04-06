@@ -31,28 +31,3 @@ coverage
 
 # Misc
 .env*.local
-
-
-.env.example 
-
-README.md 
-
-package.json 
-
-next.config.mjs 
-
-tsconfig.json 
-
-app/ 
-
-components/ 
-
-lib/ 
-
-public/ 
-
-styles/ 
-
-utils/ 
-
-vercel.json
