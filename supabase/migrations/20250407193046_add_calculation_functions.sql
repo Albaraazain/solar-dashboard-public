@@ -1,3 +1,6 @@
+-- Add calculations column first
+ALTER TABLE quotes ADD COLUMN calculations JSONB NOT NULL DEFAULT '{}'::JSONB;
+
 -- Core calculation functions
 CREATE OR REPLACE FUNCTION calculate_system_size(yearly_units FLOAT)
 RETURNS FLOAT AS $$
