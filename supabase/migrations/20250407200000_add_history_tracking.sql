@@ -22,5 +22,5 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER quote_versioning 
 AFTER UPDATE ON quotes
 FOR EACH ROW
-WHEN (OLD.calculations IS DISTINCT FROM NEW.calculations)
+WHEN (OLD.calculations::text IS DISTINCT FROM NEW.calculations::text)
 EXECUTE FUNCTION save_quote_version();
