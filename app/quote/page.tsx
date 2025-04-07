@@ -63,68 +63,33 @@ export default function SizingPage() {
   const selectedInverter = inverters.find((inverter) => inverter.id === selectedInverterType) || inverters[0]
   const selectedStructureType = structureTypes[0] // Default to first structure type
 
-  // Calculate quote total on the client side
-  const calculateQuoteTotal = () => {
-    if (!selectedPanel || !selectedInverter || !selectedStructureType || !bracketCosts.length) {
-      return null;
-    }
-
+  // Calculate quote total using PostgreSQL functions
+  const calculateQuoteTotal = async () => {
     try {
-      // Calculate number of panels needed
-      const numberOfPanels = Math.ceil((systemSize * 1000) / selectedPanel.power);
+      const { data, error } = await supabase.rpc('generate_full_quote', {
+        yearly_units: monthlyUsage * 12 // Convert monthly to yearly
+      });
+
+      if (error) throw error;
       
-      // Calculate number of inverters needed
-      const numberOfInverters = Math.ceil(systemSize / selectedInverter.power);
-      
-      // Calculate panel cost
-      const panelCost = selectedPanel.price * numberOfPanels;
-      
-      // Calculate inverter cost
-      const inverterCost = selectedInverter.price * numberOfInverters;
-      
-      // Calculate structure cost
-      const structureCost = (selectedStructureType.l2 ? 
-        selectedStructureType.custom_cost : 
-        selectedStructureType.abs_cost) * systemSize;
-      
-      // Get bracket costs for the system size
-      const applicableBracket = bracketCosts.find(
-        bracket => systemSize >= bracket.min_size && systemSize <= bracket.max_size
-      ) || bracketCosts[0];
-      
-      // Additional costs
-      const dcCableCost = applicableBracket.dc_cable;
-      const acCableCost = applicableBracket.ac_cable;
-      const accessoriesCost = applicableBracket.accessories;
-      
-      // Get labor cost from variable costs
-      const laborCostEntry = variableCosts.find(vc => vc.cost_name === "Labor Cost");
-      const laborCost = laborCostEntry ? laborCostEntry.cost * systemSize : 0;
-      
-      // Get transport cost from variable costs
-      const transportCostEntry = variableCosts.find(vc => vc.cost_name === "Transport Cost");
-      const transportCost = transportCostEntry ? transportCostEntry.cost : 0;
-      
-      // Calculate total
-      const total = panelCost + inverterCost + structureCost + 
-                    dcCableCost + acCableCost + accessoriesCost +
-                    laborCost + transportCost;
-      
-      // Store breakdown for display
+      // Update system size from calculation
+      setSystemSize(data.system_size);
+
+      // Update quote breakdown from calculation
       const breakdown = {
-        panels: panelCost,
-        inverter: inverterCost,
-        structure: structureCost,
-        dcCable: dcCableCost,
-        acCable: acCableCost,
-        accessories: accessoriesCost,
-        labor: laborCost,
-        transport: transportCost,
-        total: total
+        panels: data.panel.price * data.panel.count,
+        inverter: data.inverter.price,
+        structure: data.costs.installation,
+        dcCable: data.costs.dc_cable,
+        acCable: data.costs.ac_cable,
+        accessories: data.costs.accessories,
+        labor: data.costs.net_metering,
+        transport: data.costs.transport,
+        total: data.costs.total
       };
-      
+
       setQuoteBreakdown(breakdown);
-      return Math.round(total);
+      return Math.round(data.costs.total);
     } catch (err) {
       console.error('Error calculating quote:', err);
       return null;
