@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hojbpcknoqdiiwclpsgz.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhvamJwY2tub3FkaWl3Y2xwc2d6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM3ODc3MTYsImV4cCI6MjA1OTM2MzcxNn0.K1CXeQhrU8cfIw-H0MHWExaS8Lth89AERgmXuxFDo8o';
 
+console.log(`Using ${supabaseUrl.includes('localhost') ? 'local' : 'remote'} Supabase instance: ${supabaseUrl}`);
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Type definitions based on your database schema
