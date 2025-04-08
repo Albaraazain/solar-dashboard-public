@@ -52,7 +52,26 @@ export default function SizingPage() {
   const [quoteBreakdown, setQuoteBreakdown] = useState<{[key: string]: number}>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [monthlyUsage, setMonthlyUsage] = useState(856) // Default value
+  const [monthlyUsage, setMonthlyUsage] = useState(856)
+  const [weatherData, setWeatherData] = useState<{
+    sunHours: number
+    efficiency: number
+    temperatureImpact: number
+    annualProduction: number
+  } | null>(null)
+  const [roofRequirements, setRoofRequirements] = useState<{
+    area: number
+    efficiency: number
+    orientation: string
+    shading: number
+  } | null>(null)
+  const [batteryRecommendation, setBatteryRecommendation] = useState<{
+    recommended_capacity: number
+    autonomy_days: number
+    estimated_cost: number
+    efficiency_rating: number
+    lifespan_years: number
+  } | null>(null)
   const [billReference, setBillReference] = useState<string | null>(null)
   const [billId, setBillId] = useState<string | null>(null)
   const [savingQuote, setSavingQuote] = useState(false)
@@ -66,29 +85,61 @@ export default function SizingPage() {
   // Calculate quote total using PostgreSQL functions
   const calculateQuoteTotal = async () => {
     try {
+      console.log('Starting quote calculation with:');
+      console.log('Monthly usage:', monthlyUsage);
+      console.log('Selected panel:', selectedPanel);
+      console.log('Selected inverter:', selectedInverter);
+      console.log('Structure types:', structureTypes);
+      console.log('Bracket costs:', bracketCosts);
+      console.log('Variable costs:', variableCosts);
       const { data, error } = await supabase.rpc('generate_full_quote', {
         yearly_units: monthlyUsage * 12 // Convert monthly to yearly
       });
 
-      if (error) throw error;
-      
-      // Update system size from calculation
-      setSystemSize(data.system_size);
+      if (error) {
+        console.error('Error from generate_full_quote RPC:', error);
+        throw error;
+      }
+            console.log('Full quote data:', data);
+            
+            // Update all state from consolidated response
+            setSystemSize(data.system.size);
+            setMonthlyUsage(data.energy.monthly_usage);
+            setQuoteBreakdown({
+                panels: data.system.costs.panel,
+                inverter: data.system.costs.inverter,
+                structure: data.system.costs.installation,
+                dcCable: data.system.costs.dc_cable,
+                acCable: data.system.costs.ac_cable,
+                accessories: data.system.costs.accessories,
+                labor: data.system.costs.net_metering,
+                transport: data.system.costs.transport,
+                total: data.system.costs.total
+            });
 
-      // Update quote breakdown from calculation
-      const breakdown = {
-        panels: data.panel.price * data.panel.count,
-        inverter: data.inverter.price,
-        structure: data.costs.installation,
-        dcCable: data.costs.dc_cable,
-        acCable: data.costs.ac_cable,
-        accessories: data.costs.accessories,
-        labor: data.costs.net_metering,
-        transport: data.costs.transport,
-        total: data.costs.total
-      };
+            // Update card-specific states
+            setWeatherData({
+                sunHours: data.weather.sun_hours,
+                efficiency: data.weather.efficiency_factor,
+                temperatureImpact: data.weather.temperature_impact,
+                annualProduction: data.weather.annual_projection
+            });
 
+            setRoofRequirements({
+                area: data.roof.required_area,
+                efficiency: data.roof.layout_efficiency,
+                orientation: data.roof.optimal_orientation,
+                shading: data.roof.shading_impact
+            });
+
+            setBatteryRecommendation(data.battery);
+
+      console.log('Quote breakdown:', breakdown);
       setQuoteBreakdown(breakdown);
+      if (!data?.costs?.total || data.costs.total <= 0) {
+        console.error('Invalid total from calculation:', data);
+        throw new Error('Received invalid quote total from server');
+      }
       return Math.round(data.costs.total);
     } catch (err) {
       console.error('Error calculating quote:', err);
@@ -107,6 +158,7 @@ export default function SizingPage() {
 
   // Save quote to Supabase
   const saveQuote = async () => {
+    console.log('Saving quote with billId:', billId, 'and quoteTotal:', quoteTotal, 'and systemSize:', systemSize);
     if (!billId || !quoteTotal) {
       setError("Cannot save quote: Missing bill data or quote calculation");
       return;
@@ -121,7 +173,9 @@ export default function SizingPage() {
         total_cost: quoteTotal
       };
       
+      console.log('Quote data to be saved:', quoteData);
       const result = await createQuote(quoteData);
+      console.log('Result from createQuote:', result);
       
       if (result) {
         setQuoteSaved(true);
@@ -130,7 +184,7 @@ export default function SizingPage() {
         throw new Error("Failed to save quote");
       }
     } catch (err) {
-      console.error('Error saving quote:', err);
+      console.error('Error saving quote:', (err as Error).message);
       setError("Failed to save your quote. Please try again.");
     } finally {
       setSavingQuote(false);
