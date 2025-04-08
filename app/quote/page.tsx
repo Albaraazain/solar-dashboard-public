@@ -204,10 +204,13 @@ export default function SizingPage() {
   
   // Calculate quote when panel, inverter, system size, or cost data changes
   useEffect(() => {
-    if (selectedPanelType && selectedInverterType && structureTypes.length > 0 && bracketCosts.length > 0) {
-      const total = calculateQuoteTotal();
-      setQuoteTotal(total);
-    }
+    const fetchQuoteTotal = async () => {
+      if (selectedPanelType && selectedInverterType && structureTypes.length > 0 && bracketCosts.length > 0) {
+        const total = await calculateQuoteTotal();
+        setQuoteTotal(total);
+      }
+    };
+    fetchQuoteTotal();
   }, [selectedPanelType, selectedInverterType, systemSize, structureTypes, bracketCosts, variableCosts]);
 
   // Custom scrollbar hiding styles
