@@ -13,147 +13,102 @@ serve(async (req: Request) => {
   }
 
   try {
+    // Initialize Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Validate request
     const { quote_id } = await req.json()
-    
+    if (!quote_id) {
+      throw new Error('Missing required quote_id parameter')
+    }
+
     // Get quote data
     const { data: quote, error } = await supabase
       .from('quotes')
-      .select('*, calculations')
+      .select('id, system_size, total_cost, customer_email, calculations')
       .eq('id', quote_id)
       .single()
 
-    if (error) throw error
+    if (error || !quote) {
+      throw new Error(error?.message || 'Quote not found')
+    }
 
-    // Generate PDF with invoice layout
+    // Create basic PDF
     const pdfDoc = await PDFLib.PDFDocument.create()
-    const page = pdfDoc.addPage([612, 792]) // Letter size 8.5" x 11"
-    const { width, height } = page.getSize()
+    const page = pdfDoc.addPage([612, 792]) // Letter size
     
-    // Add template background if exists
-    // Create basic template if missing
-    try {
-      const templateBytes = await Deno.readFile('template.pdf')
-      const templateDoc = await PDFLib.PDFDocument.load(templateBytes)
-      const [templatePage] = await pdfDoc.embedPdf(templateDoc)
-      page.drawPage(templatePage)
-    } catch {
-      // Generate simple template programmatically
-      const templateDoc = await PDFLib.PDFDocument.create()
-      const templatePage = templateDoc.addPage([612, 792])
-      templatePage.drawText('Energy Cove Solar Solutions', {
-        x: 50,
-        y: 750,
-        size: 18,
-        font: await templateDoc.embedFont(PDFLib.StandardFonts.HelveticaBold)
-      })
-      const [embeddedPage] = await pdfDoc.embedPdf(await templateDoc.save())
-      page.drawPage(embeddedPage)
-    }
-    const helvetica = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold)
-    
-    // Draw customer information
-    page.drawText(`Customer: ${quote.customer_name}`, {
-      x: 50,
-      y: height - 100,
-      size: 12,
-      font: helvetica,
+    // Set up fonts
+    const font = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold)
+    const fontSize = 12
+    const margin = 50
+    let yPosition = page.getHeight() - margin
+
+    // Add basic content
+    page.drawText('Solar Quote Summary', {
+      x: margin,
+      y: yPosition,
+      size: fontSize + 4,
+      font,
     })
-    
-    page.drawText(`System Size: ${quote.system_size} kW`, {
-      x: 50,
-      y: height - 120,
-      size: 12,
-      font: helvetica,
-    })
+    yPosition -= fontSize * 2
 
-    // Cost breakdown table
-    const costs = quote.calculations.costs
-    const startY = height - 200
-    let currentY = startY
-    
-    const drawRow = (label: string, value: number) => {
-      page.drawText(label, { x: 50, y: currentY, size: 12, font: helvetica })
-      page.drawText(`$${value.toLocaleString()}`, { 
-        x: width - 150, 
-        y: currentY,
-        size: 12,
-        font: helvetica
-      })
-      currentY -= 20
-    }
+    // Quote Info
+    page.drawText(`Quote ID: ${quote_id}`, { x: margin, y: yPosition, size: fontSize, font })
+    yPosition -= fontSize * 1.5
+    page.drawText(`System Size: ${quote.system_size} kW`, { x: margin, y: yPosition, size: fontSize, font })
+    yPosition -= fontSize * 1.5
+    page.drawText(`Total Cost: $${quote.total_cost.toLocaleString()}`, { x: margin, y: yPosition, size: fontSize, font })
+    yPosition -= fontSize * 2
 
-    drawRow('Panels', costs.panel_total)
-    drawRow('Inverter', costs.inverter_price)
-    drawRow('Installation', costs.installation)
-    drawRow('Net Metering', costs.net_metering)
-    drawRow('Cabling', costs.dc_cable + costs.ac_cable)
-    drawRow('Total', quote.total_cost)
-
-    // Add terms and conditions
-    page.drawText('90% Advance Payment | 10% After Commissioning', {
-      x: 50,
-      y: 100,
-      size: 14,
-      font: helvetica,
-      color: PDFLib.rgb(0, 0.5, 0)
-    })
-
+    // Generate PDF bytes
     const pdfBytes = await pdfDoc.save()
-    
+
     // Store in storage
     const { data: file, error: storageError } = await supabase.storage
       .from('quotes-pdf')
-      .upload(`quote-${quote_id}.pdf`, pdfBytes)
+      .upload(`quote-${quote_id}.pdf`, pdfBytes, {
+        contentType: 'application/pdf',
+        upsert: true
+      })
 
     if (storageError) throw storageError
 
-    // Get public URL for the PDF
+    // Get public URL
     const { data: urlData } = supabase.storage
       .from('quotes-pdf')
       .getPublicUrl(file.path)
 
-    // Send email via Resend
-    const resendResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('RESEND_API_KEY')}`
-      },
-      body: JSON.stringify({
-        from: 'Energy Cove <quotes@energycove.com>',
-        to: quote.customer_email,
-        subject: `Your Solar Quote #${quote.reference_number}`,
-        html: `<p>Dear ${quote.customer_name},<br><br>
-              Attached is your ${quote.system_size}kW solar system quote.<br>
-              <a href="${urlData.publicUrl}">View Quote PDF</a></p>`,
-        attachments: [{
-          filename: `quote-${quote.reference_number}.pdf`,
-          content: btoa(String.fromCharCode(...pdfBytes))
-        }]
-      })
-    })
-
-    if (!resendResponse.ok) {
-      throw new Error('Failed to send email: ' + await resendResponse.text())
-    }
-
-    return new Response(JSON.stringify({ 
-      url: urlData.publicUrl,
-      message: "Email sent successfully"
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    })
+    return new Response(
+      JSON.stringify({ 
+        success: true,
+        pdf_url: urlData.publicUrl,
+        quote_id: quote_id
+      }), 
+      {
+        headers: { 
+          ...corsHeaders, 
+          "Content-Type": "application/json" 
+        }
+      }
+    )
 
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error occurred';
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    })
+    console.error("Error:", error)
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }), 
+      {
+        status: 500,
+        headers: { 
+          ...corsHeaders, 
+          "Content-Type": "application/json" 
+        }
+      }
+    )
   }
 })
