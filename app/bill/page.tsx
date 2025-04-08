@@ -1,4 +1,4 @@
-// File: app/bill/page.tsx
+  // File: app/bill/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -287,7 +287,7 @@ export default function BillsPage() {
           if (monthlyUnits && Object.keys(monthlyUnits).length > 0) {
             monthlyUsage = Object.entries(monthlyUnits).map(([month, units]) => ({
               month: month.slice(0, 3),
-              usage: typeof units === 'string' ? parseInt(units, 10) : units
+              usage: Number(units) || 0
             }));
           } else {
             // Generate sample monthly data if not available
