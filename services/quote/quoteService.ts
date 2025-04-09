@@ -32,25 +32,99 @@ class QuoteService {
   /**
    * Calculate a quote using RPC to the database function
    */
-  async calculateQuote(yearlyUnits: number): Promise<QuoteCalculationResponse | null> {
-    try {
-      console.log('Calculating quote for yearly units:', yearlyUnits);
-      
-      // Call the Supabase RPC function
-      const { data, error } = await supabase.rpc('generate_full_quote', {
-        yearly_units: yearlyUnits
-      });
-      
-      if (error) {
-        console.error('Error calculating quote:', error);
-        throw error;
+  async calculateQuote(billId: string): Promise<QuoteCalculationResponse | null> {
+    const MAX_RETRIES = 3;
+    const BASE_DELAY = 1000;
+    let attempt = 0;
+    let lastError: any;
+
+    while (attempt < MAX_RETRIES) {
+      try {
+        attempt++;
+        console.log(`Calculation attempt ${attempt} for bill ${billId}`);
+        
+        const { data, error } = await supabase.rpc('generate_full_quote', {
+          bill_id: billId
+        });
+        console.log('Raw RPC response:', {
+          data: data,
+          error: error,
+          fullResponse: JSON.stringify({data, error}, null, 2)
+        });
+
+        if (error) throw error;
+
+        await this.logCalculationAttempt({
+          quoteId: data.id,
+          status: 'success',
+          attemptNumber: attempt,
+          version: data.version
+        });
+
+        return data as QuoteCalculationResponse;
+      } catch (error) {
+        lastError = error;
+        console.error(`Attempt ${attempt} failed:`, error);
+        
+        await this.logCalculationAttempt({
+          quoteId: null,
+          status: 'failed',
+          attemptNumber: attempt,
+          errorDetails: {
+            message: error instanceof Error ? error.message : String(error),
+            code: (error as any)?.code,
+            details: (error as any)?.details
+          }
+        });
+
+        if (attempt < MAX_RETRIES) {
+          const delay = BASE_DELAY * Math.pow(2, attempt);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
-      
-      console.log('Quote calculation result:', data);
-      return data as QuoteCalculationResponse;
+    }
+
+    throw new Error(`Calculation failed after ${MAX_RETRIES} attempts: ${lastError?.message}`);
+  }
+
+  private async logCalculationAttempt(params: {
+    quoteId: string | null;
+    status: 'success' | 'failed';
+    attemptNumber: number;
+    version?: number;
+    errorDetails?: any;
+  }): Promise<void> {
+    const auditData: Record<string, any> = {
+      attempt_number: params.attemptNumber,
+      status: params.status,
+      calculation_version: params.version || 1
+    };
+    
+    if (params.quoteId) {
+      auditData.quote_id = params.quoteId;
+    }
+    if (params.errorDetails) {
+      auditData.error_details = params.errorDetails;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('calculation_audit')
+        .insert(auditData);
+
+      if (error) {
+        console.error('Failed to log calculation attempt:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          auditData
+        });
+      }
     } catch (err) {
-      console.error('Error in quote calculation:', err);
-      return null;
+      console.error('Critical failure logging attempt:', {
+        error: err instanceof Error ? err.message : String(err),
+        auditData
+      });
     }
   }
   
