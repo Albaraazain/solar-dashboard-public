@@ -4,8 +4,9 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useQuoteReducer } from '@/hooks/useQuoteReducer';
 import { useAutoSave } from '@/hooks/useAutoSave';
-import { 
-  Panel, 
+import { X } from 'lucide-react';
+import {
+  Panel,
   Inverter, 
   StructureType,
   BracketCost,
@@ -216,11 +217,20 @@ export const QuoteProvider: React.FC<{
     <QuoteContext.Provider value={contextValue}>
       {children}
       {toastMessage && (
-        <Toast 
-          message={toastMessage} 
-          type={toastType} 
-          onClose={() => setToastMessage(null)} 
-        />
+        <Toast
+          className={toastType === 'error' ? 'border-red-600 bg-red-50' : 'border-green-600 bg-green-50'}
+          variant={toastType === 'error' ? 'destructive' : 'default'}
+        >
+          <div>{toastMessage}</div>
+          <button
+            className="absolute top-2 right-2"
+            onClick={() => setToastMessage(null)}
+            title="Close notification"
+          >
+            <span className="sr-only">Close notification</span>
+            <X className="h-4 w-4" />
+          </button>
+        </Toast>
       )}
     </QuoteContext.Provider>
   );
