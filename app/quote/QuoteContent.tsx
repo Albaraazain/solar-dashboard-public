@@ -61,13 +61,19 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
     }
   };
 
-  // Calculate total cost from components
+  // Define types and constants
   type CostComponents = {
     labor?: number;
     installation?: number;
     net_metering?: number;
     transport?: number;
   };
+
+  const FINANCING_MONTHS = 60; // 5 years
+  const ANNUAL_RETURN_RATE = 0.11; // 11% annual return
+  const TOTAL_LIFESPAN = 25; // 25 years system lifespan
+
+  // Calculate total cost and financial metrics
   const calculateTotalCost = (costs: any) => {
     if (!costs?.components) return 0;
     const c = costs.components;
@@ -81,15 +87,20 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
     
     const total = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
     
-    const detailedBreakdown = {
+    const financials = {
       ...breakdown,
-      total: total,
-      estimatedSavings: total * 1.5,
-      monthlyPayment: total / 60, // 5 year financing
-      annualSavings: total * 0.11 // 11% annual return
+      total,
+      monthlyPayment: total / FINANCING_MONTHS,
+      annualSavings: total * ANNUAL_RETURN_RATE,
+      lifetimeSavings: total * ANNUAL_RETURN_RATE * TOTAL_LIFESPAN,
+      paybackPeriod: total / (total * ANNUAL_RETURN_RATE)
     };
     
-    console.log('Cost Breakdown:', detailedBreakdown);
+    if (process.env.NODE_ENV === 'development') {
+      console.group('Solar System Financials');
+      console.table(financials);
+      console.groupEnd();
+    }
     
     return total;
   };
@@ -826,16 +837,18 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
                 <div>
                   <div className="text-sm font-medium text-emerald-800 mb-1">Savings & ROI</div>
                   <div className="text-sm text-emerald-700">
-                    Your {state.systemSize}kW system could save up to {formatCurrency(totalCost ? totalCost * 0.11 : 0)} annually, with
-                    total savings of {formatCurrency(totalCost ? totalCost * 1.5 : 0)} over 25 years.
-                    <div className="bg-emerald-100/50 mt-2 p-2 rounded-lg grid grid-cols-2 gap-2 text-xs">
-                      <div>
+                    Your {state.systemSize}kW system could save up to {formatCurrency(totalCost ? totalCost * ANNUAL_RETURN_RATE : 0)} annually.
+                    
+                    <div className="bg-emerald-100/50 mt-2 p-2 rounded-lg grid grid-cols-2 gap-2">
+                      <div className="text-xs">
                         <div className="text-emerald-700 font-medium">Monthly Payment</div>
-                        <div className="text-emerald-800">{formatCurrency(totalCost ? totalCost / 60 : 0)}</div>
+                        <div className="text-emerald-800">{formatCurrency(totalCost ? totalCost / FINANCING_MONTHS : 0)}</div>
+                        <div className="text-emerald-600/70 text-[10px] mt-0.5">{FINANCING_MONTHS} months financing</div>
                       </div>
-                      <div>
-                        <div className="text-emerald-700 font-medium">Payback Period</div>
-                        <div className="text-emerald-800">~{totalCost ? Math.round(totalCost / (totalCost * 0.11)) : 0} years</div>
+                      <div className="text-xs">
+                        <div className="text-emerald-700 font-medium">Lifetime Savings</div>
+                        <div className="text-emerald-800">{formatCurrency(totalCost ? totalCost * ANNUAL_RETURN_RATE * TOTAL_LIFESPAN : 0)}</div>
+                        <div className="text-emerald-600/70 text-[10px] mt-0.5">Over {TOTAL_LIFESPAN} years</div>
                       </div>
                     </div>
                   </div>
