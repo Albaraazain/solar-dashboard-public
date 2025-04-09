@@ -53,6 +53,8 @@ export const metadata: Metadata = {
   manifest: '/manifest.json'
 }
 
+import { LoadingProvider } from '../hooks/useLoadingContext';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -60,7 +62,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <LoadingProvider>
+          {children}
+        </LoadingProvider>
+      </body>
     </html>
   )
 }
