@@ -1,4 +1,3 @@
-//  app/quote/QuoteContent.tsx
 "use client";
 
 import { useState } from "react";
@@ -559,12 +558,14 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
                 <button
                   className="bg-white/20 p-2 rounded-lg backdrop-blur-sm"
                   aria-label="View camera angle"
+                  title="View camera angle"
                 >
                   <Camera className="w-4 h-4 text-white" />
                 </button>
                 <button
                   className="bg-white/20 p-2 rounded-lg backdrop-blur-sm"
                   aria-label="View map location"
+                  title="View map location"
                 >
                   <MapPin className="w-4 h-4 text-white" />
                 </button>
