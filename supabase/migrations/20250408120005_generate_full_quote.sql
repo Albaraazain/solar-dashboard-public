@@ -39,7 +39,10 @@ BEGIN
             'size', system_size,
             'panel', panel_info,
             'inverter', inverter_info,
-            'costs', cost_breakdown
+            'costs', jsonb_build_object(
+                'components', cost_breakdown->'components',
+                'total', cost_breakdown->'total'
+            )
         ),
         'energy', energy_details,
         'weather', weather_impact,
