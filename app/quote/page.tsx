@@ -24,6 +24,7 @@ import Link from "next/link";
 import { fetchBillByReference } from "@/utils/supabase";
 import { QuoteProvider } from "./QuoteProvider";
 import QuoteContent from "./QuoteContent";
+import { QuoteErrorBoundary } from "@/components/QuoteErrorBoundary";
 
 export default function SizingPage() {
   const [billReference, setBillReference] = useState<string | null>(null);
@@ -131,7 +132,9 @@ export default function SizingPage() {
         billReference={billReference || undefined}
         initialMonthlyUsage={monthlyUsage}
       >
-        <QuoteContent monthlyUsage={monthlyUsage} />
+        <QuoteErrorBoundary onRetry={() => window.location.reload()}>
+          <QuoteContent monthlyUsage={monthlyUsage} />
+        </QuoteErrorBoundary>
       </QuoteProvider>
     </div>
   );
