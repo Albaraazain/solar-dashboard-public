@@ -19,6 +19,7 @@ export interface QuoteState {
   isSaving: boolean;
   lastSaved: Date | null;
   error: string | null;
+  
   // Versioning
   version: number;
   
@@ -26,103 +27,161 @@ export interface QuoteState {
   status: QuoteStatus;
 }
 
-
 export interface QuoteCalculationResponse {
-  system_size: number;
-  costs: CostBreakdown;
-  panel: PanelDetails;
-  inverter: InverterDetails;
-  timestamp: string;
+  system: {
+    size: number;
+    panel: PanelInfo;
+    inverter: InverterInfo;
+    costs: CostBreakdown;
+  };
+  energy: EnergyDetails;
+  weather: WeatherImpact;
+  roof: RoofRequirements;
+  battery: BatteryRecommendation;
+  metadata: QuoteMetadata;
 }
 
 export interface QuoteCalculationResults {
   system: {
     size: number;
-    panel: PanelDetails;
-    inverter: InverterDetails;
+    panel: PanelInfo;
+    inverter: InverterInfo;
     costs: CostBreakdown;
   };
+  energy: EnergyDetails;
+  weather: WeatherImpact;
+  roof: RoofRequirements;
+  battery: BatteryRecommendation;
+  metadata: QuoteMetadata;
 }
 
-export interface PanelDetails {
+export interface PanelInfo {
+  id?: string;
   brand: string;
-  model?: string;
-  count: number;
-  unit_power: number;
-  total_power: number;
-  unit_price: number;
-  total_price: number;
-  efficiency?: number;
-}
-
-export interface InverterDetails {
-  brand: string;
-  model?: string;
-  rated_power: number;
-  system_requirement: number;
-  efficiency?: number;
-  warranty?: number;
+  power: number;
   price: number;
-  margin?: number;
+  count: number;
+  total_price?: number; // Computed from price * count
+}
+
+export interface InverterInfo {
+  id?: string;
+  brand: string;
+  power: number;
+  price: number;
 }
 
 export interface CostBreakdown {
-  components: {
-    net_metering: number;
-    installation: number;
-    dc_cable: number;
-    ac_cable: number;
-    accessories: number;
-    transport: number;
-    safety_cert?: number;
-  };
-  system_size: number;
-  panel_count: number;
   total: number;
+  summary: {
+    hardware: number;
+    per_watt: number;
+    services: number;
+  };
+  components: {
+    labor: number;
+    panels: {
+      cost: number;
+      details: {
+        brand: string;
+        count: number;
+        power: number;
+        unit_price: number;
+      };
+    };
+    wiring: {
+      ac_cable: number;
+      dc_cable: number;
+    };
+    inverter: {
+      cost: number;
+      details: {
+        brand: string;
+        power: number;
+      };
+    };
+    structure: {
+      cost: number;
+      details: {
+        rate: number;
+        type: string;
+      };
+    };
+    transport: number;
+    accessories: number;
+    installation: number;
+    net_metering: number;
+  };
 }
 
 export interface EnergyDetails {
-  monthly_usage: number;
   peak_usage: number;
+  monthly_usage: number;
   offpeak_usage: number;
-  estimated_production: number;
   efficiency_score: number;
-  comparison_metrics?: {
-    regional_average: number;
+  comparison_metrics: {
     efficient_homes: number;
+    regional_average: number;
   };
+  estimated_production: number;
 }
 
 export interface WeatherImpact {
-  sun_hours: number;
-  efficiency_factor: number;
-  temperature_impact: number;
-  annual_projection: number;
+  region: string;
+  solar_intensity: number;
+  seasonal_variation: {
+    fall: number;
+    spring: number;
+    summer: number;
+    winter: number;
+  };
+  annual_sunshine_hours: number;
 }
 
 export interface RoofRequirements {
+  panel_count: number;
+  panel_power: number;
   required_area: number;
+  shading_impact: number;
   layout_efficiency: number;
   optimal_orientation: {
-    azimuth: number;
     tilt: number;
+    azimuth: number;
   };
-  shading_impact: number;
 }
 
 export interface BatteryRecommendation {
+  efficiency: number;
+  cost_estimate: {
+    total: number;
+    per_kwh: number;
+  };
+  specifications: {
+    amp_hours: number;
+    batteries_count: number;
+    parallel_strings: number;
+  };
+  system_voltage: number;
+  backup_duration: {
+    days: number;
+    hours: number;
+  };
+  daily_usage_kwh: number;
+  recommended_type: string;
   recommended_capacity: number;
-  autonomy_days: number;
-  estimated_cost: number;
-  efficiency_rating: number;
-  lifespan_years: number;
+}
+
+export interface QuoteMetadata {
+  currency: string;
+  valid_until: string;
+  generated_at: string;
 }
 
 export interface QuoteParams {
-  systemSize: number;
-  selectedPanelType: string;
-  selectedInverterType: string;
-  monthlyUsage: number;
+  bill_id: string;
+  override_system_size?: number;
+  override_panel_id?: string;
+  override_inverter_id?: string;
 }
 
 export type QuoteStatus = 'draft' | 'final';
