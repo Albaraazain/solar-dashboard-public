@@ -4,7 +4,8 @@ import {
   QuoteParams, 
   QuoteCalculationResults, 
   QuoteStatus,
-  SaveQuoteResult
+  SaveQuoteResult,
+  QuoteCalculationResponse
 } from './quoteTypes';
 
 // Debounce helper function
@@ -31,7 +32,7 @@ class QuoteService {
   /**
    * Calculate a quote using RPC to the database function
    */
-  async calculateQuote(yearlyUnits: number): Promise<QuoteCalculationResults | null> {
+  async calculateQuote(yearlyUnits: number): Promise<QuoteCalculationResponse | null> {
     try {
       console.log('Calculating quote for yearly units:', yearlyUnits);
       
@@ -46,7 +47,7 @@ class QuoteService {
       }
       
       console.log('Quote calculation result:', data);
-      return data as QuoteCalculationResults;
+      return data as QuoteCalculationResponse;
     } catch (err) {
       console.error('Error in quote calculation:', err);
       return null;
