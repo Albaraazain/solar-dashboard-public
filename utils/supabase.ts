@@ -92,74 +92,98 @@ export interface Quote {
 }
 
 // Helper functions
-export async function fetchPanels() {
+import type { LoadingContextType } from '../hooks/useLoadingContext';
+
+export async function fetchPanels(loadingContext?: Pick<LoadingContextType, 'setLoading'>) {
+  loadingContext?.setLoading(true);
+  console.log("Fetching data from 'panels' table");
   const { data, error } = await supabase
     .from('panels')
     .select('*')
     .eq('availability', true);
   
   if (error) {
+    loadingContext?.setLoading(false);
     console.error('Error fetching panels:', error);
     return [];
   }
   
+  loadingContext?.setLoading(false);
   return data as Panel[];
 }
 
-export async function fetchInverters() {
+export async function fetchInverters(loadingContext?: Pick<LoadingContextType, 'setLoading'>) {
+  loadingContext?.setLoading(true);
+  console.log("Fetching data from 'inverters' table");
   const { data, error } = await supabase
     .from('inverters')
     .select('*')
     .eq('availability', true);
   
   if (error) {
+    loadingContext?.setLoading(false);
     console.error('Error fetching inverters:', error);
     return [];
   }
   
+  loadingContext?.setLoading(false);
   return data as Inverter[];
 }
 
-export async function fetchStructureTypes() {
+export async function fetchStructureTypes(loadingContext?: Pick<LoadingContextType, 'setLoading'>) {
+  loadingContext?.setLoading(true);
+  console.log("Fetching data from 'structure_types' table");
   const { data, error } = await supabase
     .from('structure_types')
     .select('*');
   
   if (error) {
+    loadingContext?.setLoading(false);
     console.error('Error fetching structure types:', error);
     return [];
   }
   
+  loadingContext?.setLoading(false);
   return data as StructureType[];
 }
 
-export async function fetchBracketCosts() {
+export async function fetchBracketCosts(loadingContext?: Pick<LoadingContextType, 'setLoading'>) {
+  loadingContext?.setLoading(true);
+  console.log("Fetching data from 'bracket_costs' table");
   const { data, error } = await supabase
     .from('bracket_costs')
     .select('*');
   
   if (error) {
+    loadingContext?.setLoading(false);
     console.error('Error fetching bracket costs:', error);
     return [];
   }
   
+  loadingContext?.setLoading(false);
   return data as BracketCost[];
 }
 
-export async function fetchVariableCosts() {
+export async function fetchVariableCosts(loadingContext?: Pick<LoadingContextType, 'setLoading'>) {
+  loadingContext?.setLoading(true);
+  console.log("Fetching data from 'variable_costs' table");
   const { data, error } = await supabase
     .from('variable_costs')
     .select('*');
   
   if (error) {
+    loadingContext?.setLoading(false);
     console.error('Error fetching variable costs:', error);
     return [];
   }
   
+  loadingContext?.setLoading(false);
   return data as VariableCost[];
 }
 
-export async function fetchBillByReference(referenceNumber: string) {
+export async function fetchBillByReference(referenceNumber: string, loadingContext?: Pick<LoadingContextType, 'setLoading'>) {
+  loadingContext?.setLoading(true);
+  console.log("Fetching data from 'bills' table");
   const { data, error } = await supabase
     .from('bills')
     .select('*')
@@ -167,14 +191,18 @@ export async function fetchBillByReference(referenceNumber: string) {
     .single();
   
   if (error) {
+    loadingContext?.setLoading(false);
     console.error('Error fetching bill:', error);
     return null;
   }
   
+  loadingContext?.setLoading(false);
   return data as Bill;
 }
 
-export async function createCustomer(customerData: Partial<Customer>) {
+export async function createCustomer(customerData: Partial<Customer>, loadingContext?: Pick<LoadingContextType, 'setLoading'>) {
+  loadingContext?.setLoading(true);
+  console.log("Fetching data from 'customers' table");
   const { data, error } = await supabase
     .from('customers')
     .upsert(customerData, { onConflict: 'reference_number' })
@@ -182,14 +210,17 @@ export async function createCustomer(customerData: Partial<Customer>) {
     .single();
   
   if (error) {
+    loadingContext?.setLoading(false);
     console.error('Error creating customer:', error);
     return null;
   }
   
+  loadingContext?.setLoading(false);
   return data;
 }
 
-export async function createBill(billData: Partial<Bill>) {
+export async function createBill(billData: Partial<Bill>, loadingContext?: Pick<LoadingContextType, 'setLoading'>) {
+  loadingContext?.setLoading(true);
   const { data, error } = await supabase
     .from('bills')
     .upsert(billData, { onConflict: 'reference_number' })
@@ -197,14 +228,18 @@ export async function createBill(billData: Partial<Bill>) {
     .single();
   
   if (error) {
+    loadingContext?.setLoading(false);
     console.error('Error creating bill:', error);
     return null;
   }
   
+  loadingContext?.setLoading(false);
   return data;
 }
 
-export async function createQuote(quoteData: Partial<Quote>) {
+export async function createQuote(quoteData: Partial<Quote>, loadingContext?: Pick<LoadingContextType, 'setLoading'>) {
+  loadingContext?.setLoading(true);
+  console.log("Fetching data from 'quotes' table");
   const { data, error } = await supabase
     .from('quotes')
     .insert(quoteData)
@@ -212,10 +247,12 @@ export async function createQuote(quoteData: Partial<Quote>) {
     .single();
   
   if (error) {
+    loadingContext?.setLoading(false);
     console.error('Error creating quote:', error);
     return null;
   }
   
+  loadingContext?.setLoading(false);
   return data;
 }
 
