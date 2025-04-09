@@ -4,12 +4,14 @@
 import React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useLoading } from "@/hooks/useLoadingContext"
 import { ArrowRight, Check, ChevronDown, FileText, Phone, Search, Shield, Sun, Zap } from "lucide-react"
 import Link from "next/link"
 import { supabase, createCustomer, createBill, generateMockBillData } from "@/utils/supabase"
 
 export default function LandingPage() {
   const router = useRouter()
+  const { setLoading } = useLoading()
   const [billProvider, setBillProvider] = useState("MEPCO")
   const [referenceNumber, setReferenceNumber] = useState("")
   const [phoneNumber, setPhoneNumber] = useState("")
@@ -70,6 +72,7 @@ export default function LandingPage() {
     }
     
     setIsSubmitting(true);
+    setLoading(true);
     console.log("[Form Submission] Form is now submitting");
     
     try {
@@ -147,7 +150,7 @@ export default function LandingPage() {
       });
       
       // Attempt to create/update customer with upsert
-      const customer = await createCustomer(customerData);
+      const customer = await createCustomer(customerData, { setLoading });
       if (customer) {
         console.log("[Customer Creation] Customer upserted successfully:", {
           id: customer.id,
@@ -187,7 +190,7 @@ export default function LandingPage() {
       };
       console.log("[Bill Creation] Bill data prepared:", supabaseBillData);
       
-      await createBill(supabaseBillData);
+      await createBill(supabaseBillData, { setLoading });
       console.log("[Bill Creation] Bill created successfully");
       
       // Store data and navigate with logging
@@ -207,8 +210,9 @@ export default function LandingPage() {
     } finally {
       console.log("[Form Submission] Completing form submission");
       setIsSubmitting(false);
+      setLoading(false);
     }
-  };
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 text-gray-800">
