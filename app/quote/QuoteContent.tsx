@@ -75,7 +75,12 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
 
   // Calculate total cost and financial metrics
   const calculateTotalCost = (costs: any) => {
-    if (!costs?.components) return 0;
+    if (!costs?.components) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Missing cost components data:', costs);
+      }
+      return 0;
+    }
     const c = costs.components;
     
     const breakdown = {
@@ -327,20 +332,35 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
             </p>
           </div>
           <div className="text-center md:text-right">
-            <div className="text-3xl md:text-4xl font-bold text-emerald-600">
-              {totalCost ? formatCurrency(totalCost) : "Calculating..."}
-            </div>
-            <div className="flex flex-col gap-1">
-              <div className="text-xs text-gray-500">
-                Installation & Labor: {formatCurrency((costs?.components?.labor ?? 0) + (costs?.components?.installation ?? 0))}
+            <div className="flex flex-col items-end gap-1">
+              <div className="text-3xl md:text-4xl font-bold text-emerald-600">
+                {totalCost ? formatCurrency(totalCost) : "Calculating..."}
               </div>
-              {totalCost > 0 && (
-                <div className="text-xs text-emerald-600">
-                  Monthly Payment: ~{formatCurrency(totalCost / 60)} (5 year financing)
+              <div className="flex flex-col text-right">
+                <div className="text-xs text-gray-500">
+                  Base Cost: {formatCurrency((costs?.components?.labor ?? 0) + (costs?.components?.installation ?? 0))}
                 </div>
-              )}
+                {totalCost > 0 && (
+                  <div className="text-xs flex items-center gap-2">
+                    <span className="text-emerald-600 font-medium">
+                      {formatCurrency(totalCost / FINANCING_MONTHS)}/mo
+                    </span>
+                    <span className="text-gray-400 text-[10px]">
+                      for {FINANCING_MONTHS} months
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="text-sm text-gray-500">Estimated savings of {formatCurrency(state.totalCost ? state.totalCost * 1.5 : 0)} over 25 years</div>
+            <div className="flex flex-col text-xs gap-1">
+              <div className="text-emerald-600">Monthly Energy Cost: ~{formatCurrency(totalCost ? totalCost * ANNUAL_RETURN_RATE / 12 : 0)}</div>
+              <div className="text-gray-500">
+                <span className="inline-block mr-2">•</span>
+                {formatCurrency(totalCost ? totalCost * ANNUAL_RETURN_RATE : 0)} annual savings
+                <span className="inline-block mx-2">•</span>
+                {formatCurrency(totalCost ? totalCost * ANNUAL_RETURN_RATE * TOTAL_LIFESPAN : 0)} lifetime savings
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -823,10 +843,47 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
                   {formatCurrency(costs?.components?.transport ?? 0)}
                 </span>
               </div>
-              <div className="border-t pt-2 flex justify-between font-semibold">
-                <span>Total</span>
-                <span className="text-emerald-600">{totalCost ? formatCurrency(totalCost) : "Calculating..."}</span>
-              </div>
+              {state.isLoading ? (
+                <div className="bg-gray-50 p-3 rounded-lg mt-4 animate-pulse">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="h-12 bg-gray-200 rounded"></div>
+                    <div className="h-12 bg-gray-200 rounded"></div>
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full mt-3"></div>
+                </div>
+              ) : (
+                <div className="bg-emerald-50/50 p-3 rounded-lg mt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm font-medium text-emerald-800">System Cost</div>
+                    <div className="mt-1 text-sm text-emerald-600">{formatCurrency(totalCost || 0)}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-emerald-800">Lifetime Return</div>
+                    <div className="mt-1 text-sm text-emerald-600">
+                      {formatCurrency(totalCost ? totalCost * ANNUAL_RETURN_RATE * TOTAL_LIFESPAN : 0)}
+                    </div>
+                  </div>
+                </div>
+                  <div className="h-2 bg-emerald-100 rounded-full mt-3 overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 transition-all duration-500"
+                      style={{
+                        width: totalCost ? `${Math.min(100, (totalCost * ANNUAL_RETURN_RATE * TOTAL_LIFESPAN / totalCost) * 100)}%` : '0%'
+                      }}
+                    />
+                    {totalCost === 0 && (
+                      <div className="text-xs text-gray-500 text-center mt-1">
+                        Waiting for cost data...
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-between mt-1 text-xs text-emerald-600">
+                    <span>Investment</span>
+                    <span>Return {totalCost ? `(${Math.round((ANNUAL_RETURN_RATE * TOTAL_LIFESPAN) * 100)}%)` : '...'}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
