@@ -54,7 +54,10 @@ BEGIN
     -- Bracket Costs data
     BEGIN
         INSERT INTO public.bracket_costs (min_size, max_size, ac_cable, accessories, dc_cable) VALUES
-        (10, 999, 10000, 20000, 15000);
+        (1, 3, 5000, 10000, 7500),
+        (3.1, 6, 8000, 15000, 10000),
+        (6.1, 10, 9000, 18000, 12500),
+        (10.1, 999, 10000, 20000, 15000);
         RAISE NOTICE 'Bracket Costs data inserted successfully';
     EXCEPTION WHEN OTHERS THEN
         GET STACKED DIAGNOSTICS error_text = MESSAGE_TEXT;
