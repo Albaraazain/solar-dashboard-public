@@ -2,11 +2,7 @@
 import { useReducer, useEffect, useCallback } from 'react';
 import { QuoteState, QuoteCalculationResults, QuoteParams, QuoteStatus } from '@/services/quote/quoteTypes';
 import { quoteService } from '@/services/quote/quoteService';
-
-// Local state for retry management
-let saveRetryCount = 0;
-
-// Update initial state type
+import { useAutoSave } from './useAutoSave';
 
 // Define action types
 type QuoteAction =
@@ -85,10 +81,8 @@ function quoteReducer(state: QuoteState, action: QuoteAction): QuoteState {
       return {
         ...state,
         calculationResults: action.results,
-        totalCost: action.results.system.costs.total,
-        // Update system size if it came from calculation
+        totalCost: action.results.system.costs.total || 0,
         systemSize: action.results.system.size,
-        // Auto-increment version on calculation update
         version: state.version + 1
       };
     case 'SET_QUOTE_ID':
@@ -175,10 +169,21 @@ export function useQuoteReducer(initialBillId?: string, initialBillReference?: s
       dispatch({ type: 'SET_ERROR', error: null });
       
       const yearlyUsage = monthlyUsage * 12;
-      const results = await quoteService.calculateQuote(yearlyUsage);
+      const response = await quoteService.calculateQuote(yearlyUsage);
       
-      if (results) {
-        dispatch({ type: 'SET_CALCULATION_RESULTS', results });
+      if (response) {
+        // Transform response into expected format
+        dispatch({
+          type: 'SET_CALCULATION_RESULTS',
+          results: {
+            system: {
+              size: response.system_size,
+              costs: response.costs,
+              panel: response.panel,
+              inverter: response.inverter
+            }
+          }
+        });
       } else {
         dispatch({ type: 'SET_ERROR', error: 'Failed to calculate quote' });
       }
@@ -189,15 +194,9 @@ export function useQuoteReducer(initialBillId?: string, initialBillReference?: s
     }
   }, []);
   
-  // Save quote (auto-save)
+  // Save quote
   const saveQuote = useCallback(async () => {
     if (!state.billId || !state.calculationResults) {
-      return;
-    }
-
-    if (saveRetryCount >= 3) {
-      dispatch({ type: 'SET_ERROR', error: 'Auto-save failed after multiple attempts' });
-      saveRetryCount = 0; // Reset for next time
       return;
     }
     
@@ -219,27 +218,32 @@ export function useQuoteReducer(initialBillId?: string, initialBillReference?: s
         }
         dispatch({ type: 'SET_SAVED', timestamp: new Date() });
         dispatch({ type: 'INCREMENT_VERSION' });
-        
-        // Reset retry count on successful save
-        saveRetryCount = 0;
       } else {
-        // Increment retry count and attempt retry after delay
-        saveRetryCount++;
-        setTimeout(() => saveQuote(), 2000 * saveRetryCount);
-        dispatch({ type: 'SET_ERROR', error: saveResult.error || 'Failed to save quote' });
+        throw new Error(saveResult.error || 'Failed to save quote');
       }
     } catch (error: any) {
-      saveRetryCount++;
-      setTimeout(() => saveQuote(), 2000 * saveRetryCount);
       dispatch({ type: 'SET_ERROR', error: error.message || 'Error saving quote' });
+      throw error; // Re-throw for the auto-save hook to handle retries
     }
-  }, [state.billId, state.systemSize, state.totalCost, state.calculationResults, state.id]);
+  }, [state.billId, state.systemSize, state.totalCost, state.calculationResults, state.id, state.status]);
+
+  // Set up auto-save with debounce and retry functionality
+  const { debouncedSave } = useAutoSave({
+    onSave: saveQuote,
+    dependencies: [
+      state.systemSize,
+      state.selectedPanelType,
+      state.selectedInverterType,
+      state.calculationResults,
+      state.status
+    ],
+    debounceTime: 2000,
+    maxRetries: 3,
+    onSaveError: (error) => {
+      console.error('Auto-save error:', error);
+    }
+  });
   
-  // Debounced save for auto-saving
-  const debouncedSave = useCallback(
-    debounce(saveQuote, 2000),
-    [saveQuote]
-  );
   
   // Update functions
   const updateSystemSize = useCallback((size: number) => {
@@ -265,22 +269,4 @@ export function useQuoteReducer(initialBillId?: string, initialBillReference?: s
     updatePanelType,
     updateInverterType
   };
-}
-
-// Helper function for debouncing
-function debounce<F extends (...args: any[]) => any>(
-  func: F,
-  waitFor: number
-) {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-
-  const debounced = (...args: Parameters<F>) => {
-    if (timeout !== null) {
-      clearTimeout(timeout);
-      timeout = null;
-    }
-    timeout = setTimeout(() => func(...args), waitFor);
-  };
-
-  return debounced as (...args: Parameters<F>) => void;
 }
