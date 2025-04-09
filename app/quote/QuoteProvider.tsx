@@ -2,6 +2,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useToast } from '@/components/ui/use-toast';
 import { useQuoteReducer } from '@/hooks/useQuoteReducer';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { X } from 'lucide-react';
@@ -17,7 +18,6 @@ import {
   fetchBracketCosts,
   fetchVariableCosts 
 } from '@/utils/supabase';
-import { Toast } from '@/components/ui/toast';
 
 // Define the context types
 interface QuoteContextType {
@@ -57,11 +57,7 @@ export const QuoteProvider: React.FC<{
     updatePanelType,
     updateInverterType
   } = useQuoteReducer(billId, billReference);
-  
-  // Toast notification state
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [toastType, setToastType] = useState<'success' | 'error'>('success');
-  
+   
   // Equipment state
   const [panels, setPanels] = useState<Panel[]>([]);
   const [inverters, setInverters] = useState<Inverter[]>([]);
@@ -78,16 +74,6 @@ export const QuoteProvider: React.FC<{
   const isFirstRenderRef = useRef(true);
   
   // Show toast notification
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastType(type);
-    
-    // Auto-hide toast after 3 seconds
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3000);
-  };
-  
   // Set up auto-save
   const { saveNow } = useAutoSave({
     onSave: async () => {
@@ -115,12 +101,10 @@ export const QuoteProvider: React.FC<{
       console.log('Auto-save completed');
       // Only show toast on significant changes to avoid spamming
       if (!isFirstRenderRef.current && state.lastSaved) {
-        showToast('Quote saved automatically');
       }
     },
     onSaveError: (err) => {
       console.error('Auto-save error:', err);
-      showToast('Failed to save quote', 'error');
     }
   });
   
@@ -165,7 +149,7 @@ export const QuoteProvider: React.FC<{
         }
       } catch (error) {
         console.error('Error loading equipment data:', error);
-        showToast('Failed to load equipment data', 'error');
+        
       } finally {
         setEquipmentLoading(false);
       }
@@ -216,22 +200,7 @@ export const QuoteProvider: React.FC<{
   return (
     <QuoteContext.Provider value={contextValue}>
       {children}
-      {toastMessage && (
-        <Toast
-          className={toastType === 'error' ? 'border-red-600 bg-red-50' : 'border-green-600 bg-green-50'}
-          variant={toastType === 'error' ? 'destructive' : 'default'}
-        >
-          <div>{toastMessage}</div>
-          <button
-            className="absolute top-2 right-2"
-            onClick={() => setToastMessage(null)}
-            title="Close notification"
-          >
-            <span className="sr-only">Close notification</span>
-            <X className="h-4 w-4" />
-          </button>
-        </Toast>
-      )}
+      
     </QuoteContext.Provider>
   );
 };
