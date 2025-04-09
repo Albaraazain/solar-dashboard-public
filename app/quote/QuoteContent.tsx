@@ -1,4 +1,4 @@
-// app/quote/QuoteContent.tsx
+//  app/quote/QuoteContent.tsx
 "use client";
 
 import { useState } from "react";
