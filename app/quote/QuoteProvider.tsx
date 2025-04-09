@@ -6,17 +6,13 @@ import { useToast } from '@/components/ui/use-toast';
 import { useQuoteReducer } from '@/hooks/useQuoteReducer';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { X } from 'lucide-react';
+import { supabase } from '@/utils/supabase';
 import {
   Panel,
-  Inverter, 
+  Inverter,
   StructureType,
   BracketCost,
-  VariableCost,
-  fetchPanels,
-  fetchInverters,
-  fetchStructureTypes,
-  fetchBracketCosts,
-  fetchVariableCosts 
+  VariableCost
 } from '@/utils/supabase';
 
 // Define the context types
@@ -90,10 +86,10 @@ export const QuoteProvider: React.FC<{
       await saveQuote();
     },
     dependencies: [
-      state.systemSize,
+      state.calculationResults?.system.size,
       state.selectedPanelType,
       state.selectedInverterType,
-      state.calculationResults
+      state.calculationResults?.system.costs.total
     ],
     debounceTime: 2000,
     onSaveStart: () => console.log('Auto-save started'),
@@ -113,37 +109,76 @@ export const QuoteProvider: React.FC<{
     const loadEquipment = async () => {
       setEquipmentLoading(true);
       try {
-        // Load all equipment data in parallel
-        const [
-          panelsData,
-          invertersData,
-          structureTypesData,
-          bracketCostsData,
-          variableCostsData
-        ] = await Promise.all([
-          fetchPanels(),
-          fetchInverters(),
-          fetchStructureTypes(),
-          fetchBracketCosts(),
-          fetchVariableCosts()
-        ]);
+        // Single RPC call to get all equipment data
+        const { data, error } = await supabase.rpc('get_equipment_data');
+        console.log('Equipment data response:', { data, error });
         
-        setPanels(panelsData);
-        setInverters(invertersData);
-        setStructureTypes(structureTypesData);
-        setBracketCosts(bracketCostsData);
-        setVariableCosts(variableCostsData);
+        if (error || !data) {
+          throw new Error(error?.message || 'Failed to fetch equipment data');
+        }
+        
+        // RPC returns array of rows - take first result
+        const equipmentData = data?.[0] || {};
+        
+        const {
+          panels: panelsData = [],
+          inverters: invertersData = [],
+          structure_types: structureTypesData = [],
+          bracket_costs: bracketCostsData = [],
+          variable_costs: variableCostsData = []
+        } = equipmentData;
+        
+        // Validate required equipment data
+        if (panelsData.length === 0 || invertersData.length === 0) {
+          throw new Error('Missing required equipment data');
+        }
+        
+        // Validate and ensure array types
+        const safePanels = Array.isArray(panelsData) ? panelsData : [];
+        const safeInverters = Array.isArray(invertersData) ? invertersData : [];
+        const safeStructureTypes = Array.isArray(structureTypesData) ? structureTypesData : [];
+        const safeBracketCosts = Array.isArray(bracketCostsData) ? bracketCostsData : [];
+        const safeVariableCosts = Array.isArray(variableCostsData) ? variableCostsData : [];
+        
+        // Only update state if data actually changed
+        if (JSON.stringify(safePanels) !== JSON.stringify(panels)) {
+          console.log('Updating panels state');
+          setPanels(safePanels);
+        }
+        
+        if (JSON.stringify(safeInverters) !== JSON.stringify(inverters)) {
+          console.log('Updating inverters state');
+          setInverters(safeInverters);
+        }
+
+        if (JSON.stringify(safeStructureTypes) !== JSON.stringify(structureTypes)) {
+          console.log('Updating structureTypes state');
+          setStructureTypes(safeStructureTypes);
+        }
+
+        // Bracket and variable costs likely static - only update if changed
+        if (JSON.stringify(safeBracketCosts) !== JSON.stringify(bracketCosts)) {
+          console.log('Updating bracketCosts state');
+          setBracketCosts(safeBracketCosts);
+        }
+
+        if (JSON.stringify(safeVariableCosts) !== JSON.stringify(variableCosts)) {
+          console.log('Updating variableCosts state');
+          setVariableCosts(safeVariableCosts);
+        }
         
         // Set default panel and inverter if not already set
-        if (!state.selectedPanelType && panelsData.length > 0) {
-          const defaultPanel = panelsData.find(p => p.default_choice) || panelsData[0];
-          updatePanelType(defaultPanel.id);
+        if (!state.selectedPanelType) {
+          const defaultPanel = panelsData.find((p: Panel) => p.default_choice);
+          if (defaultPanel) {
+            updatePanelType(defaultPanel.id);
+          }
         }
         
         if (!state.selectedInverterType && invertersData.length > 0) {
           // Find appropriate inverter for system size
           const appropriateInverter = invertersData.find(
-            inv => inv.power >= state.systemSize
+            (inv: Inverter) => inv.power >= state.systemSize
           ) || invertersData[0];
           updateInverterType(appropriateInverter.id);
         }
@@ -179,8 +214,12 @@ export const QuoteProvider: React.FC<{
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [state.billId, state.calculationResults, state.isSaving, saveNow]);
-  
-  // Provide context
+
+  // Debug render cycles
+  const renderCount = useRef(0);
+  renderCount.current++;
+  console.log(`QuoteProvider render #${renderCount.current}`);
+
   const contextValue: QuoteContextType = {
     state,
     calculateQuote,
