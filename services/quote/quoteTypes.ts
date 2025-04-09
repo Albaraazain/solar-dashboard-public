@@ -27,21 +27,20 @@ export interface QuoteState {
 }
 
 
+export interface QuoteCalculationResponse {
+  system_size: number;
+  costs: CostBreakdown;
+  panel: PanelDetails;
+  inverter: InverterDetails;
+  timestamp: string;
+}
+
 export interface QuoteCalculationResults {
   system: {
     size: number;
     panel: PanelDetails;
     inverter: InverterDetails;
     costs: CostBreakdown;
-  };
-  energy: EnergyDetails;
-  weather: WeatherImpact;
-  roof: RoofRequirements;
-  battery: BatteryRecommendation;
-  metadata: {
-    currency: string;
-    valid_until: string;
-    generated_at: string;
   };
 }
 
