@@ -101,7 +101,7 @@ function quoteReducer(state: QuoteState, action: QuoteAction): QuoteState {
         ...state,
         id: action.quote.id,
         billId: action.quote.bill_id,
-        systemSize: action.quote.system_size,
+        systemSize: Number(action.quote.system_size.toFixed(2)), // Round to 2 decimal places
         totalCost: action.quote.total_cost,
         calculationResults: action.quote.calculations,
         lastSaved: new Date(action.quote.updated_at),
@@ -168,19 +168,32 @@ export function useQuoteReducer(initialBillId?: string, initialBillReference?: s
       dispatch({ type: 'SET_LOADING', isLoading: true });
       dispatch({ type: 'SET_ERROR', error: null });
       
-      const yearlyUsage = monthlyUsage * 12;
-      const response = await quoteService.calculateQuote(yearlyUsage);
+      // We need billId for the calculation
+      if (!state.billId) {
+        throw new Error('Bill ID is required for calculation');
+      }
+      
+      const response = await quoteService.calculateQuote(state.billId);
       
       if (response) {
-        // Transform response into expected format
+        // Transform response into expected format and include metadata
         dispatch({
           type: 'SET_CALCULATION_RESULTS',
           results: {
             system: {
-              size: response.system_size,
-              costs: response.costs,
-              panel: response.panel,
-              inverter: response.inverter
+              size: response.system.size,
+              costs: response.system.costs,
+              panel: response.system.panel,
+              inverter: response.system.inverter
+            },
+            energy: response.energy,
+            weather: response.weather,
+            roof: response.roof,
+            battery: response.battery,
+            metadata: response.metadata || {
+              currency: 'PKR',
+              valid_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              generated_at: new Date().toISOString()
             }
           }
         });
@@ -243,7 +256,6 @@ export function useQuoteReducer(initialBillId?: string, initialBillReference?: s
       console.error('Auto-save error:', error);
     }
   });
-  
   
   // Update functions
   const updateSystemSize = useCallback((size: number) => {
