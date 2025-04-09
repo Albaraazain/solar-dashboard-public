@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Camera,
   MapPin,
@@ -61,15 +61,134 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
     }
   };
 
+  // Calculate total cost from components
+  type CostComponents = {
+    labor?: number;
+    installation?: number;
+    net_metering?: number;
+    transport?: number;
+  };
+  const calculateTotalCost = (costs: any) => {
+    if (!costs?.components) return 0;
+    const c = costs.components;
+    
+    const breakdown = {
+      labor: c.labor ?? 0,
+      installation: c.installation ?? 0,
+      net_metering: c.net_metering ?? 0,
+      transport: c.transport ?? 0
+    };
+    
+    const total = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
+    
+    const detailedBreakdown = {
+      ...breakdown,
+      total: total,
+      estimatedSavings: total * 1.5,
+      monthlyPayment: total / 60, // 5 year financing
+      annualSavings: total * 0.11 // 11% annual return
+    };
+    
+    console.log('Cost Breakdown:', detailedBreakdown);
+    
+    return total;
+  };
+
+  // Skip debug logs in production
+  if (process.env.NODE_ENV === 'development') {
+    console.group('Quote Cost Calculations');
+    console.log('Raw calculation results:', state.calculationResults);
+    console.groupEnd();
+  }
+
+  // Log costs structure
+  const rawCosts = state.calculationResults?.system.costs;
+  const totalCost = calculateTotalCost(rawCosts);
+  
+  // Log the calculated total
+  useEffect(() => {
+    if (totalCost > 0) {
+      console.log('Calculated total cost:', totalCost);
+    }
+  }, [totalCost]);
+  console.log('Raw costs structure:', {
+    rawCosts,
+    components: rawCosts?.components,
+    summary: rawCosts?.summary
+  });
+
   // Get quote breakdown from calculation results
-  const quoteBreakdown = state.calculationResults?.system.costs.components || {
-    net_metering: 0,
-    installation: 0,
-    dc_cable: 0,
-    ac_cable: 0,
-    accessories: 0,
-    transport: 0,
-    safety_cert: 0
+  const costs = state.calculationResults?.system.costs || {
+    components: {
+      labor: 0,
+      panels: {
+        cost: 0,
+        details: {
+          brand: "",
+          count: 0,
+          power: 0,
+          unit_price: 0
+        }
+      },
+      wiring: {
+        ac_cable: 0,
+        dc_cable: 0
+      },
+      inverter: {
+        cost: 0,
+        details: {
+          brand: "",
+          power: 0
+        }
+      },
+      structure: {
+        cost: 0,
+        details: {
+          rate: 0,
+          type: ""
+        }
+      },
+      transport: 0,
+      accessories: 0,
+      installation: 0,
+      net_metering: 0
+    },
+    summary: {
+      hardware: 0,
+      per_watt: 0,
+      services: 0
+    },
+    total: 0
+  };
+
+  // Calculate panel total price
+  const panelTotalPrice = state.calculationResults?.system.panel ?
+    state.calculationResults.system.panel.price * state.calculationResults.system.panel.count : 0;
+
+  // Get weather impact data
+  const weatherData = state.calculationResults?.weather || {
+    region: "Central Pakistan",
+    solar_intensity: 5.1,
+    seasonal_variation: {
+      fall: 0.9,
+      spring: 0.95,
+      summer: 1.25,
+      winter: 0.7
+    },
+    annual_sunshine_hours: 3100
+  };
+
+  // Get energy details
+  const energyDetails = state.calculationResults?.energy || {
+    peak_usage: monthlyUsage * 0.42,
+    monthly_usage: monthlyUsage,
+    offpeak_usage: monthlyUsage * 0.58,
+    efficiency_score: 0.75,
+    comparison_metrics: {
+      efficient_homes: monthlyUsage * 0.6,
+      regional_average: monthlyUsage * 0.85
+    },
+    estimated_production: monthlyUsage * 1.2
   };
 
   // Auto-save status message
@@ -169,6 +288,8 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
                   : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
               }`}
               onClick={() => setActiveTab(tab)}
+              title={`Switch to ${tab} tab`}
+              aria-label={`Switch to ${tab} tab`}
             >
               {tab}
             </button>
@@ -196,7 +317,17 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
           </div>
           <div className="text-center md:text-right">
             <div className="text-3xl md:text-4xl font-bold text-emerald-600">
-              {state.totalCost ? formatCurrency(state.totalCost) : "Calculating..."}
+              {totalCost ? formatCurrency(totalCost) : "Calculating..."}
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="text-xs text-gray-500">
+                Installation & Labor: {formatCurrency((costs?.components?.labor ?? 0) + (costs?.components?.installation ?? 0))}
+              </div>
+              {totalCost > 0 && (
+                <div className="text-xs text-emerald-600">
+                  Monthly Payment: ~{formatCurrency(totalCost / 60)} (5 year financing)
+                </div>
+              )}
             </div>
             <div className="text-sm text-gray-500">Estimated savings of {formatCurrency(state.totalCost ? state.totalCost * 1.5 : 0)} over 25 years</div>
           </div>
@@ -264,10 +395,12 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
             </div>
             
             <div className="flex items-center justify-between mb-6">
-              <button 
+              <button
                 onClick={() => adjustSystemSize(false)}
                 className="bg-gray-100 p-2 rounded-full hover:bg-gray-200 transition-colors"
                 disabled={state.systemSize <= 1}
+                title="Decrease system size"
+                aria-label="Decrease system size"
               >
                 <Minus className="w-5 h-5 text-gray-700" />
               </button>
@@ -276,10 +409,12 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
                 {state.systemSize} <span className="text-lg md:text-xl text-gray-500 font-normal">kW</span>
               </div>
               
-              <button 
+              <button
                 onClick={() => adjustSystemSize(true)}
                 className="bg-gray-100 p-2 rounded-full hover:bg-gray-200 transition-colors"
                 disabled={state.systemSize >= 15}
+                title="Increase system size"
+                aria-label="Increase system size"
               >
                 <Plus className="w-5 h-5 text-gray-700" />
               </button>
@@ -654,45 +789,32 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
             </div>
 
             <div className="space-y-3 mb-4">
+              {/* Main system components */}
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">
-                  Solar Panels ({Math.ceil((state.systemSize * 1000) / (selectedPanel?.power || 1))} x {selectedPanel?.brand})
+                  Labor & Installation
                 </span>
-                <span className="text-sm font-medium">{formatCurrency(state.calculationResults?.system.panel.total_price || 0)}</span>
+                <span className="text-sm font-medium">
+                  {formatCurrency((costs?.components?.labor ?? 0) + (costs?.components?.installation ?? 0))}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">
-                  Inverter ({Math.ceil(state.systemSize / (selectedInverter?.power || 1))} x {selectedInverter?.brand})
+                  Net Metering Setup
                 </span>
-                <span className="text-sm font-medium">{formatCurrency(state.calculationResults?.system.inverter.price || 0)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Mounting Structure</span>
-                <span className="text-sm font-medium">{formatCurrency(quoteBreakdown.installation || 0)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">DC Cabling</span>
-                <span className="text-sm font-medium">{formatCurrency(quoteBreakdown.dc_cable || 0)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">AC Cabling</span>
-                <span className="text-sm font-medium">{formatCurrency(quoteBreakdown.ac_cable || 0)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Accessories</span>
-                <span className="text-sm font-medium">{formatCurrency(quoteBreakdown.accessories || 0)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Net Metering</span>
-                <span className="text-sm font-medium">{formatCurrency(quoteBreakdown.net_metering || 0)}</span>
+                <span className="text-sm font-medium">
+                  {formatCurrency(costs?.components?.net_metering ?? 0)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Transport</span>
-                <span className="text-sm font-medium">{formatCurrency(quoteBreakdown.transport || 0)}</span>
+                <span className="text-sm font-medium">
+                  {formatCurrency(costs?.components?.transport ?? 0)}
+                </span>
               </div>
               <div className="border-t pt-2 flex justify-between font-semibold">
                 <span>Total</span>
-                <span className="text-emerald-600">{state.totalCost ? formatCurrency(state.totalCost) : "Calculating..."}</span>
+                <span className="text-emerald-600">{totalCost ? formatCurrency(totalCost) : "Calculating..."}</span>
               </div>
             </div>
 
@@ -704,8 +826,18 @@ export default function QuoteContent({ monthlyUsage }: QuoteContentProps) {
                 <div>
                   <div className="text-sm font-medium text-emerald-800 mb-1">Savings & ROI</div>
                   <div className="text-sm text-emerald-700">
-                    Your {state.systemSize}kW system will pay for itself in approximately 9.1 years and generate
-                    a total return of {formatCurrency(state.totalCost ? state.totalCost * 1.5 : 0)} over 25 years.
+                    Your {state.systemSize}kW system could save up to {formatCurrency(totalCost ? totalCost * 0.11 : 0)} annually, with
+                    total savings of {formatCurrency(totalCost ? totalCost * 1.5 : 0)} over 25 years.
+                    <div className="bg-emerald-100/50 mt-2 p-2 rounded-lg grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-emerald-700 font-medium">Monthly Payment</div>
+                        <div className="text-emerald-800">{formatCurrency(totalCost ? totalCost / 60 : 0)}</div>
+                      </div>
+                      <div>
+                        <div className="text-emerald-700 font-medium">Payback Period</div>
+                        <div className="text-emerald-800">~{totalCost ? Math.round(totalCost / (totalCost * 0.11)) : 0} years</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
