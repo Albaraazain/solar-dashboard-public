@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { supabase, fetchBillByReference, Bill } from "@/utils/supabase"
+import { calculateSystemSizing, SystemSizingInput } from "@/utils/edgeFunctions"
 
 export default function BillsPage() {
   interface MonthlyUsage {
@@ -40,6 +41,8 @@ export default function BillsPage() {
       current: string
       reduction: string
     }
+    recommendedSize?: number
+    annualProduction?: number
   }
 
   interface BillData {
@@ -106,6 +109,36 @@ export default function BillsPage() {
       .format(numValue)
       .replace("PKR", "Rs.")
   }
+  const estimateSolarSavings = async (unitsConsumed: number) => {
+    try {
+      // Call the edge function with the bill's units consumed
+      const sizingResult = await calculateSystemSizing({
+        monthlyUsage: unitsConsumed
+      });
+      
+      // Return savings data
+      return {
+        monthlyReduction: Math.round(sizingResult.costs.total * 0.8 / 300), // Approximate monthly savings
+        annualReduction: Math.round(sizingResult.costs.total * 0.8 / 25), // Approximate annual savings
+        percentage: 80.8, // Standard reduction percentage
+        recommendedSize: sizingResult.systemSize,
+        annualProduction: sizingResult.production.annual
+      };
+    } catch (err) {
+      console.error('Error estimating solar savings:', err);
+      
+      // Fallback calculations
+      const monthlyReduction = unitsConsumed * 10; // Rough estimate
+      return {
+        monthlyReduction,
+        annualReduction: monthlyReduction * 12,
+        percentage: 80.8,
+        recommendedSize: Math.ceil(unitsConsumed / 120), // Rough estimate
+        annualProduction: unitsConsumed * 12 * 1.2 // Rough estimate
+      };
+    }
+  };
+
 
   const calculatePotentialSavings = (amount: number) => {
     const monthlyReduction = amount * 0.808 // 80.8% reduction
@@ -359,6 +392,8 @@ export default function BillsPage() {
         });
         
         // Update analytics
+        const savingsEstimate = await estimateSolarSavings(billRecord.units_consumed);
+              
         setAnalyticsData({
           monthlyUsage,
           peakUsage: {
@@ -366,8 +401,14 @@ export default function BillsPage() {
             percentage: 42,
             kWh: Math.round(billRecord.units_consumed * 0.42),
           },
-          potentialSavings: calculatePotentialSavings(billRecord.amount),
+          potentialSavings: {
+            monthly: `Rs. ${Math.round(savingsEstimate.monthlyReduction).toLocaleString()}`,
+            annual: `Rs. ${Math.round(savingsEstimate.annualReduction).toLocaleString()}`,
+            percentage: savingsEstimate.percentage,
+          },
           carbonFootprint: calculateCarbonFootprint(billRecord.units_consumed),
+          recommendedSize: savingsEstimate.recommendedSize,
+          annualProduction: savingsEstimate.annualProduction
         });
       }
     } catch (err: any) {
@@ -527,7 +568,7 @@ export default function BillsPage() {
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Bills & Analytics</h1>
             <div className="flex items-center gap-3">
               <div className="relative">
-                <select
+                <select title="Select Month"
                   className="appearance-none bg-white border border-gray-200 rounded-lg py-2 pl-4 pr-10 text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm"
                   value={selectedBill}
                   onChange={(e) => setSelectedBill(e.target.value)}
@@ -541,7 +582,7 @@ export default function BillsPage() {
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
               </div>
-              <button className="bg-white p-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm">
+              <button title="Search" className="bg-white p-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm">
                 <Search className="w-5 h-5" />
               </button>
             </div>
@@ -563,11 +604,11 @@ export default function BillsPage() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button className="bg-white/20 p-2 rounded-lg backdrop-blur-sm hover:bg-white/30 transition-colors"
+                <button title="Print" className="bg-white/20 p-2 rounded-lg backdrop-blur-sm hover:bg-white/30 transition-colors"
                   onClick={() => window.print()}>
                   <Printer className="w-4 h-4 text-white" />
                 </button>
-                <button className="bg-white/20 p-2 rounded-lg backdrop-blur-sm hover:bg-white/30 transition-colors">
+                <button title="Download" className="bg-white/20 p-2 rounded-lg backdrop-blur-sm hover:bg-white/30 transition-colors">
                   <Download className="w-4 h-4 text-white" />
                 </button>
               </div>
@@ -931,7 +972,7 @@ export default function BillsPage() {
                     <div>
                       <div className="text-sm font-medium text-emerald-800 mb-1">Personalized Recommendation</div>
                       <div className="text-sm text-emerald-700">
-                        Based on your energy usage patterns, a {Math.ceil(parseInt(billData.unitsConsumed, 10) / 120)} kW solar system would offset approximately 80% of
+                        Based on your energy usage patterns, a {analyticsData.recommendedSize?.toFixed(1) || Math.ceil(parseInt(billData.unitsConsumed, 10) / 120)} kW solar system would offset approximately 80% of
                         your electricity bill, with an estimated payback period of 9.1 years.
                       </div>
                       <div className="mt-4">

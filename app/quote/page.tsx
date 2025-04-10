@@ -1,4 +1,3 @@
-// File: app/quote/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -19,8 +18,8 @@ import {
   Wind,
   ThermometerSun,
   Droplets,
+  RefreshCcw,
 } from "lucide-react"
-import Image from "next/image"
 import Link from "next/link"
 import { 
   supabase, 
@@ -37,12 +36,15 @@ import {
   fetchBillByReference,
   createQuote
 } from "@/utils/supabase"
+import { calculateSystemSizing, SystemSizingInput, SystemSizingResponse } from "@/utils/edgeFunctions"
 
 export default function SizingPage() {
   const [activeTab, setActiveTab] = useState("Sizing")
   const [selectedPanelType, setSelectedPanelType] = useState("")
   const [selectedInverterType, setSelectedInverterType] = useState("")
   const [systemSize, setSystemSize] = useState(7.5) // Default system size
+  const [userAdjustedSize, setUserAdjustedSize] = useState(false)
+  const [recalculating, setRecalculating] = useState(false)
   const [panels, setPanels] = useState<Panel[]>([])
   const [inverters, setInverters] = useState<Inverter[]>([])
   const [structureTypes, setStructureTypes] = useState<StructureType[]>([])
@@ -82,78 +84,256 @@ export default function SizingPage() {
   const selectedInverter = inverters.find((inverter) => inverter.id === selectedInverterType) || inverters[0]
   const selectedStructureType = structureTypes[0] // Default to first structure type
 
-  // Calculate quote total using PostgreSQL functions
+  // Calculate quote using edge function
   const calculateQuoteTotal = async () => {
     try {
       console.log('Starting quote calculation with:');
       console.log('Monthly usage:', monthlyUsage);
-      console.log('Selected panel:', selectedPanel);
-      console.log('Selected inverter:', selectedInverter);
-      console.log('Structure types:', structureTypes);
-      console.log('Bracket costs:', bracketCosts);
-      console.log('Variable costs:', variableCosts);
-      const { data, error } = await supabase.rpc('generate_full_quote', {
-        yearly_units: monthlyUsage * 12 // Convert monthly to yearly
+      console.log('System size:', systemSize);
+      
+      // Prepare input for the edge function
+      const input: SystemSizingInput = {
+        monthlyUsage,
+        location: "Central Pakistan", // Default, can make this configurable
+        roofDirection: "south", // Default, can make this configurable
+        roofType: "standard", // Default, can make this configurable
+        shading: "minimal", // Default, can make this configurable
+      };
+      
+      // If the user manually adjusted the system size, force it
+      if (userAdjustedSize) {
+        input.forceSize = systemSize;
+      }
+      
+      // Call the edge function
+      const result = await calculateSystemSizing(input);
+      console.log('System sizing result:', result);
+      
+      // Update system size from calculation (if not forced)
+      if (!userAdjustedSize) {
+        setSystemSize(result.systemSize);
+      }
+      
+      // Update weather data
+      setWeatherData({
+        sunHours: result.weather?.sunHours || result.production?.peakSunHours || 5.2,
+        efficiency: result.efficiencyFactors?.systemEfficiency || 92,
+        temperatureImpact: result.efficiencyFactors?.temperature || 9,
+        annualProduction: result.production?.annual || Math.round(systemSize * 1460)
       });
-
-      if (error) {
-        console.error('Error from generate_full_quote RPC:', error);
-        throw error;
-      }
-            console.log('Full quote data:', data);
-            
-            // Update all state from consolidated response
-            setSystemSize(data.system.size);
-            setMonthlyUsage(data.energy.monthly_usage);
-            setQuoteBreakdown({
-                panels: data.system.costs.panel,
-                inverter: data.system.costs.inverter,
-                structure: data.system.costs.installation,
-                dcCable: data.system.costs.dc_cable,
-                acCable: data.system.costs.ac_cable,
-                accessories: data.system.costs.accessories,
-                labor: data.system.costs.net_metering,
-                transport: data.system.costs.transport,
-                total: data.system.costs.total
-            });
-
-            // Update card-specific states
-            setWeatherData({
-                sunHours: data.weather.sun_hours,
-                efficiency: data.weather.efficiency_factor,
-                temperatureImpact: data.weather.temperature_impact,
-                annualProduction: data.weather.annual_projection
-            });
-
-            setRoofRequirements({
-                area: data.roof.required_area,
-                efficiency: data.roof.layout_efficiency,
-                orientation: data.roof.optimal_orientation,
-                shading: data.roof.shading_impact
-            });
-
-            setBatteryRecommendation(data.battery);
-
-      console.log('Quote breakdown:', breakdown);
-      setQuoteBreakdown(breakdown);
-      if (!data?.costs?.total || data.costs.total <= 0) {
-        console.error('Invalid total from calculation:', data);
-        throw new Error('Received invalid quote total from server');
-      }
-      return Math.round(data.costs.total);
+      
+      // Update roof requirements
+      setRoofRequirements({
+        area: result.roof?.required_area || Math.round(Math.ceil((systemSize * 1000) / (selectedPanel?.power || 1)) * 1.8),
+        efficiency: result.roof?.layout_efficiency || 95,
+        orientation: result.roof?.optimal_orientation || "south",
+        shading: result.roof?.shading_impact || 5
+      });
+      
+      // Update battery recommendation
+      setBatteryRecommendation(result.battery || {
+        recommended_capacity: monthlyUsage * 0.3,
+        autonomy_days: 1,
+        estimated_cost: monthlyUsage * 200,
+        efficiency_rating: 0.95,
+        lifespan_years: 10
+      });
+      
+      // Update quote breakdown from the costs data
+      setQuoteBreakdown({
+        panels: result.costs?.panels || 0,
+        inverter: result.costs?.inverter || 0,
+        structure: result.costs?.mounting || 0,
+        dcCable: result.costs?.dcCable || 0,
+        acCable: result.costs?.acCable || 0,
+        accessories: result.costs?.accessories || 0,
+        labor: result.costs?.installation || 0,
+        transport: result.costs?.transport || 0,
+        netMetering: result.costs?.netMetering || 0,
+        total: result.costs?.total || 0
+      });
+      
+      return result.costs?.total || 0;
     } catch (err) {
       console.error('Error calculating quote:', err);
       return null;
     }
   };
 
+  // Recalculate with forced system size (for manual adjustments)
+  const recalculateWithSize = async (size: number) => {
+    try {
+      // Set loading state for affected UI components
+      setRecalculating(true);
+      
+      // Call the edge function with forced size
+      const sizingResult = await calculateSystemSizing({
+        monthlyUsage,
+        location: "Central Pakistan", // Use the current selected values
+        roofDirection: "south",       // or make these configurable
+        roofType: "standard",
+        shading: "minimal",
+        forceSize: size // This is key - force the size parameter
+      });
+      
+      console.log('Recalculated system sizing with forced size:', size, sizingResult);
+      
+      // Update panel count and requirement calculations
+      // This would reflect the new number of panels needed for the adjusted system size
+      const newPanelCount = Math.ceil((size * 1000) / (selectedPanel?.power || 1));
+      
+      // Update roof requirements
+      setRoofRequirements({
+        area: sizingResult.roof?.required_area || Math.round(newPanelCount * 1.8),
+        efficiency: sizingResult.roof?.layout_efficiency || 95,
+        orientation: sizingResult.roof?.optimal_orientation || "south",
+        shading: sizingResult.roof?.shading_impact || 5
+      });
+      
+      // Update production data
+      setWeatherData({
+        sunHours: sizingResult.weather?.sunHours || sizingResult.production?.peakSunHours || 5.2,
+        efficiency: sizingResult.efficiencyFactors?.systemEfficiency || 92,
+        temperatureImpact: sizingResult.efficiencyFactors?.temperature || 9,
+        annualProduction: sizingResult.production?.annual || Math.round(size * 1460)
+      });
+      
+      // Update cost breakdown
+      setQuoteBreakdown({
+        panels: sizingResult.costs?.panels || newPanelCount * (selectedPanel?.price || 400),
+        inverter: sizingResult.costs?.inverter || (Math.ceil(size / (selectedInverter?.power || 5)) * (selectedInverter?.price || 120000)),
+        structure: sizingResult.costs?.mounting || newPanelCount * 8000,
+        dcCable: sizingResult.costs?.dcCable || 300 * Math.ceil(Math.sqrt(newPanelCount * 1.8) * 4),
+        acCable: sizingResult.costs?.acCable || 400 * Math.ceil(Math.sqrt(newPanelCount * 1.8) * 4),
+        accessories: sizingResult.costs?.accessories || 26000,
+        labor: sizingResult.costs?.installation || 25000,
+        transport: sizingResult.costs?.transport || 15000,
+        netMetering: sizingResult.costs?.netMetering || 50000,
+        total: sizingResult.costs?.total || 0
+      });
+      
+      // Update total quote
+      if (sizingResult.costs?.total) {
+        setQuoteTotal(sizingResult.costs.total);
+      } else {
+        // Fallback calculation if edge function doesn't return total
+        const calculatedTotal = Object.values(quoteBreakdown).reduce((sum, value) => sum + value, 0);
+        setQuoteTotal(calculatedTotal);
+      }
+    } catch (error) {
+      console.error('Error recalculating with forced size:', error);
+      // Fallback to basic calculations if the API call fails
+      const newPanelCount = Math.ceil((size * 1000) / (selectedPanel?.power || 1));
+      
+      // Update with basic calculations
+      setRoofRequirements(prev => ({
+        ...prev,
+        area: Math.round(newPanelCount * 1.8)
+      }));
+      
+      setWeatherData(prev => ({
+        ...prev,
+        annualProduction: Math.round(size * 1460)
+      }));
+      
+      // Basic cost calculation
+      const basicCosts = {
+        panels: newPanelCount * (selectedPanel?.price || 400),
+        inverter: Math.ceil(size / (selectedInverter?.power || 5)) * (selectedInverter?.price || 120000),
+        structure: newPanelCount * 8000,
+        dcCable: 300 * Math.ceil(Math.sqrt(newPanelCount * 1.8) * 4),
+        acCable: 400 * Math.ceil(Math.sqrt(newPanelCount * 1.8) * 4),
+        accessories: 26000,
+        labor: 25000,
+        transport: 15000,
+        netMetering: 50000
+      };
+      
+      const totalCost = Object.values(basicCosts).reduce((sum, value) => sum + value, 0);
+      basicCosts.total = totalCost;
+      
+      setQuoteBreakdown(basicCosts);
+      setQuoteTotal(totalCost);
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
+  // Reset to recommended system size
+  const resetToRecommendedSize = async () => {
+    setRecalculating(true);
+    try {
+      // Call the edge function without forceSize to get recommended size
+      const result = await calculateSystemSizing({
+        monthlyUsage,
+        location: "Central Pakistan",
+        roofDirection: "south",
+        roofType: "standard",
+        shading: "minimal"
+      });
+      
+      setUserAdjustedSize(false);
+      setSystemSize(result.systemSize);
+      
+      // Update all the data based on the recommendation
+      setWeatherData({
+        sunHours: result.weather?.sunHours || result.production?.peakSunHours || 5.2,
+        efficiency: result.efficiencyFactors?.systemEfficiency || 92,
+        temperatureImpact: result.efficiencyFactors?.temperature || 9,
+        annualProduction: result.production?.annual || Math.round(result.systemSize * 1460)
+      });
+      
+      setRoofRequirements({
+        area: result.roof?.required_area || Math.round(Math.ceil((result.systemSize * 1000) / (selectedPanel?.power || 1)) * 1.8),
+        efficiency: result.roof?.layout_efficiency || 95,
+        orientation: result.roof?.optimal_orientation || "south",
+        shading: result.roof?.shading_impact || 5
+      });
+      
+      setBatteryRecommendation(result.battery || {
+        recommended_capacity: monthlyUsage * 0.3,
+        autonomy_days: 1,
+        estimated_cost: monthlyUsage * 200,
+        efficiency_rating: 0.95,
+        lifespan_years: 10
+      });
+      
+      setQuoteBreakdown({
+        panels: result.costs?.panels || 0,
+        inverter: result.costs?.inverter || 0,
+        structure: result.costs?.mounting || 0,
+        dcCable: result.costs?.dcCable || 0,
+        acCable: result.costs?.acCable || 0,
+        accessories: result.costs?.accessories || 0,
+        labor: result.costs?.installation || 0,
+        transport: result.costs?.transport || 0,
+        netMetering: result.costs?.netMetering || 0,
+        total: result.costs?.total || 0
+      });
+      
+      setQuoteTotal(result.costs?.total || 0);
+    } catch (err) {
+      console.error('Error resetting to recommended size:', err);
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   // Adjust system size
   const adjustSystemSize = (increment: boolean) => {
-    if (increment) {
-      setSystemSize(prev => Math.min(prev + 0.5, 15)); // Max 15kW
-    } else {
-      setSystemSize(prev => Math.max(prev - 0.5, 1)); // Min 1kW
-    }
+    // Calculate new size
+    const newSize = increment 
+      ? Math.min(systemSize + 0.5, 15) // Max 15kW
+      : Math.max(systemSize - 0.5, 1); // Min 1kW
+    
+    // Update the state
+    setSystemSize(newSize);
+    
+    // Flag that user manually changed the size
+    setUserAdjustedSize(true);
+    
+    // Recalculate with the new size
+    recalculateWithSize(newSize);
   };
 
   // Save quote to Supabase
@@ -201,23 +381,6 @@ export default function SizingPage() {
         const storedBillRef = localStorage.getItem('billReference');
         setBillReference(storedBillRef);
         
-        // Get bill data if available
-        if (storedBillRef) {
-          const billRecord = await fetchBillByReference(storedBillRef);
-            
-          if (billRecord) {
-            setBillId(billRecord.id);
-            
-            // Set monthly usage based on bill data
-            setMonthlyUsage(billRecord.units_consumed);
-            
-            // Calculate appropriate system size based on usage
-            // A rough estimation: 1 kW system produces about 120 kWh per month
-            const calculatedSize = Math.ceil(billRecord.units_consumed / 120 * 10) / 10; // Round to nearest 0.1
-            setSystemSize(calculatedSize);
-          }
-        }
-        
         // Load equipment and cost data in parallel
         const [panelsData, invertersData, structureTypesData, bracketCostsData, variableCostsData] = await Promise.all([
           fetchPanels(),
@@ -239,10 +402,100 @@ export default function SizingPage() {
           setSelectedPanelType(defaultPanel.id);
         }
         
-        // Set default inverter - choose one appropriate for system size
-        const appropriateInverter = invertersData.find(inv => inv.power >= systemSize) || invertersData[0];
-        if (appropriateInverter) {
-          setSelectedInverterType(appropriateInverter.id);
+        // Get bill data if available
+        if (storedBillRef) {
+          const billRecord = await fetchBillByReference(storedBillRef);
+            
+          if (billRecord) {
+            setBillId(billRecord.id);
+            
+            // Set monthly usage based on bill data
+            setMonthlyUsage(billRecord.units_consumed);
+            
+            // Calculate initial system sizing based on bill data
+            const input: SystemSizingInput = {
+              monthlyUsage: billRecord.units_consumed,
+              location: "Central Pakistan",
+              roofDirection: "south",
+              roofType: "standard",
+              shading: "minimal"
+            };
+            
+            // Call edge function to get initial sizing
+            try {
+              const sizingResult = await calculateSystemSizing(input);
+              
+              // Update system size
+              setSystemSize(sizingResult.systemSize);
+              
+              // Set default inverter based on recommended system size
+              const appropriateInverter = invertersData.find(inv => inv.power >= sizingResult.systemSize) || invertersData[0];
+              if (appropriateInverter) {
+                setSelectedInverterType(appropriateInverter.id);
+              }
+              
+              // Update UI data
+              setWeatherData({
+                sunHours: sizingResult.weather?.sunHours || sizingResult.production?.peakSunHours || 5.2,
+                efficiency: sizingResult.efficiencyFactors?.systemEfficiency || 92,
+                temperatureImpact: sizingResult.efficiencyFactors?.temperature || 9,
+                annualProduction: sizingResult.production?.annual || Math.round(sizingResult.systemSize * 1460)
+              });
+              
+              setRoofRequirements({
+                area: sizingResult.roof?.required_area || Math.round(Math.ceil((sizingResult.systemSize * 1000) / (defaultPanel?.power || 1)) * 1.8),
+                efficiency: sizingResult.roof?.layout_efficiency || 95,
+                orientation: sizingResult.roof?.optimal_orientation || "south",
+                shading: sizingResult.roof?.shading_impact || 5
+              });
+              
+              setBatteryRecommendation(sizingResult.battery || {
+                recommended_capacity: billRecord.units_consumed * 0.3,
+                autonomy_days: 1,
+                estimated_cost: billRecord.units_consumed * 200,
+                efficiency_rating: 0.95,
+                lifespan_years: 10
+              });
+              
+              // Set initial quote breakdown
+              setQuoteBreakdown({
+                panels: sizingResult.costs?.panels || 0,
+                inverter: sizingResult.costs?.inverter || 0,
+                structure: sizingResult.costs?.mounting || 0,
+                dcCable: sizingResult.costs?.dcCable || 0,
+                acCable: sizingResult.costs?.acCable || 0,
+                accessories: sizingResult.costs?.accessories || 0,
+                labor: sizingResult.costs?.installation || 0,
+                transport: sizingResult.costs?.transport || 0,
+                netMetering: sizingResult.costs?.netMetering || 0,
+                total: sizingResult.costs?.total || 0
+              });
+              
+              setQuoteTotal(sizingResult.costs?.total || 0);
+              
+            } catch (sizeErr) {
+              console.error('Error getting initial sizing:', sizeErr);
+              // Fall back to estimating system size
+              const calculatedSize = Math.ceil(billRecord.units_consumed / 120 * 10) / 10;
+              setSystemSize(calculatedSize);
+              
+              // Set default inverter based on estimated system size
+              const fallbackInverter = invertersData.find(inv => inv.power >= calculatedSize) || invertersData[0];
+              if (fallbackInverter) {
+                setSelectedInverterType(fallbackInverter.id);
+              }
+            }
+          }
+        } else {
+          // If no bill data, set default inverter
+          const initialInverter = invertersData.find(inv => inv.power >= systemSize) || invertersData[0];
+          if (initialInverter) {
+            setSelectedInverterType(initialInverter.id);
+          }
+          
+          // Run initial calculation with default values
+          const initialCalc = await calculateQuoteTotal();
+          setQuoteTotal(initialCalc);
         }
         
         setLoading(false);
@@ -256,16 +509,23 @@ export default function SizingPage() {
     fetchData();
   }, []);
   
-  // Calculate quote when panel, inverter, system size, or cost data changes
+  // Recalculate when panel or inverter type changes
   useEffect(() => {
-    const fetchQuoteTotal = async () => {
-      if (selectedPanelType && selectedInverterType && structureTypes.length > 0 && bracketCosts.length > 0) {
-        const total = await calculateQuoteTotal();
-        setQuoteTotal(total);
+    const updateQuote = async () => {
+      if (selectedPanelType && selectedInverterType && !recalculating) {
+        if (userAdjustedSize) {
+          // If user adjusted size, recalculate with forced size
+          recalculateWithSize(systemSize);
+        } else {
+          // Otherwise calculate with recommended size
+          const total = await calculateQuoteTotal();
+          setQuoteTotal(total);
+        }
       }
     };
-    fetchQuoteTotal();
-  }, [selectedPanelType, selectedInverterType, systemSize, structureTypes, bracketCosts, variableCosts]);
+    
+    updateQuote();
+  }, [selectedPanelType, selectedInverterType]);
 
   // Custom scrollbar hiding styles
   const scrollbarHideStyles = `
@@ -374,10 +634,10 @@ export default function SizingPage() {
                 Customized system sizing based on your energy profile and location data.
               </p>
               <div className="flex gap-3 md:gap-4">
-                <button 
+              <button 
                   className={`bg-white text-emerald-700 px-4 md:px-6 py-2 md:py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 ${savingQuote ? 'opacity-70 cursor-wait' : ''} ${quoteSaved ? 'bg-emerald-200' : ''}`}
                   onClick={saveQuote}
-                  disabled={savingQuote || quoteSaved}
+                  disabled={savingQuote || quoteSaved || recalculating}
                 >
                   {quoteSaved ? "Quote Saved!" : savingQuote ? "Saving..." : "Save Quote"}
                 </button>
@@ -393,7 +653,11 @@ export default function SizingPage() {
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/20 to-emerald-700/20 rounded-full animate-pulse"></div>
               <div className="absolute inset-4 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center">
                 <div className="text-center">
-                  <div className="text-3xl md:text-5xl font-bold text-white mb-1 md:mb-2">{systemSize}</div>
+                  {recalculating ? (
+                    <div className="h-8 w-8 rounded-full border-2 border-white border-t-transparent animate-spin mx-auto mb-1"></div>
+                  ) : (
+                    <div className="text-3xl md:text-5xl font-bold text-white mb-1 md:mb-2">{systemSize}</div>
+                  )}
                   <div className="text-sm md:text-base text-emerald-100">kW System</div>
                 </div>
               </div>
@@ -438,10 +702,31 @@ export default function SizingPage() {
               <p className="text-gray-600">
                 {systemSize}kW system with {Math.ceil((systemSize * 1000) / (selectedPanel?.power || 1))} {selectedPanel?.brand} panels
               </p>
+              {userAdjustedSize && (
+                <div className="mt-2 flex items-center text-xs text-blue-600">
+                  <span className="bg-blue-100 px-2 py-0.5 rounded-full flex items-center">
+                    <span className="mr-1">Manually adjusted</span>
+                    <button 
+                      onClick={resetToRecommendedSize}
+                      className="ml-1 text-blue-700 hover:text-blue-900 flex items-center"
+                      disabled={recalculating}
+                    >
+                      <RefreshCcw className="w-3 h-3 mr-0.5" /> Reset
+                    </button>
+                  </span>
+                </div>
+              )}
             </div>
             <div className="text-center md:text-right">
               <div className="text-3xl md:text-4xl font-bold text-emerald-600">
-                {quoteTotal ? formatCurrency(quoteTotal) : "Calculating..."}
+                {recalculating ? (
+                  <span className="flex items-center justify-end gap-2">
+                    <span className="h-6 w-6 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin"></span>
+                    <span className="text-emerald-500 text-2xl">Recalculating...</span>
+                  </span>
+                ) : (
+                  quoteTotal ? formatCurrency(quoteTotal) : "Calculating..."
+                )}
               </div>
               <div className="text-sm text-gray-500">Estimated savings of {formatCurrency(quoteTotal ? quoteTotal * 1.5 : 0)} over 25 years</div>
             </div>
@@ -508,23 +793,30 @@ export default function SizingPage() {
                 </div>
               </div>
               
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4">
                 <button 
                   onClick={() => adjustSystemSize(false)}
-                  className="bg-gray-100 p-2 rounded-full hover:bg-gray-200 transition-colors"
-                  disabled={systemSize <= 1}
+                  className={`bg-gray-100 p-2 rounded-full ${
+                    systemSize <= 1 || recalculating ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'
+                  } transition-colors`}
+                  disabled={systemSize <= 1 || recalculating}
                 >
                   <Minus className="w-5 h-5 text-gray-700" />
                 </button>
                 
-                <div className="text-4xl md:text-5xl font-bold text-gray-900">
+                <div className="text-4xl md:text-5xl font-bold text-gray-900 flex items-center">
+                  {recalculating && (
+                    <span className="h-5 w-5 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin inline-block mr-2"></span>
+                  )}
                   {systemSize} <span className="text-lg md:text-xl text-gray-500 font-normal">kW</span>
                 </div>
                 
                 <button 
                   onClick={() => adjustSystemSize(true)}
-                  className="bg-gray-100 p-2 rounded-full hover:bg-gray-200 transition-colors"
-                  disabled={systemSize >= 15}
+                  className={`bg-gray-100 p-2 rounded-full ${
+                    systemSize >= 15 || recalculating ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'
+                  } transition-colors`}
+                  disabled={systemSize >= 15 || recalculating}
                 >
                   <Plus className="w-5 h-5 text-gray-700" />
                 </button>
@@ -582,11 +874,15 @@ export default function SizingPage() {
 
               <div className="flex justify-between mb-4 md:mb-6">
                 <div className="text-center">
-                  <div className="text-3xl md:text-4xl font-bold text-gray-900">5.2</div>
+                  <div className="text-3xl md:text-4xl font-bold text-gray-900">
+                    {weatherData?.sunHours || 5.2}
+                  </div>
                   <div className="text-sm text-gray-500">Sun hours/day</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-3xl md:text-4xl font-bold text-gray-900">92%</div>
+                  <div className="text-3xl md:text-4xl font-bold text-gray-900">
+                    {weatherData?.efficiency || 92}%
+                  </div>
                   <div className="text-sm text-gray-500">Efficiency</div>
                 </div>
               </div>
@@ -611,7 +907,9 @@ export default function SizingPage() {
 
               <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
                 <div className="text-sm font-medium text-emerald-800 mb-2">Annual Production</div>
-                <div className="text-xl md:text-2xl font-bold text-emerald-700">{Math.round(systemSize * 1460)} kWh</div>
+                <div className="text-xl md:text-2xl font-bold text-emerald-700">
+                  {weatherData?.annualProduction || Math.round(systemSize * 1460)} kWh
+                </div>
                 <div className="text-xs text-emerald-600 mt-1">+15% above regional average</div>
               </div>
             </div>
@@ -843,15 +1141,15 @@ export default function SizingPage() {
 
             <div className="p-4 md:p-6">
               <div className="grid grid-cols-2 gap-4 mb-4 md:mb-6">
-                <div className="bg-gray-50 p-3 md:p-4 rounded-xl">
+              <div className="bg-gray-50 p-3 md:p-4 rounded-xl">
                   <div className="text-sm text-gray-500 mb-1">Required Area</div>
                   <div className="text-lg md:text-xl font-medium text-gray-900">
-                    {Math.round(Math.ceil((systemSize * 1000) / (selectedPanel?.power || 1)) * 1.8)} m²
+                    {roofRequirements?.area || Math.round(Math.ceil((systemSize * 1000) / (selectedPanel?.power || 1)) * 1.8)} m²
                   </div>
                 </div>
                 <div className="bg-gray-50 p-3 md:p-4 rounded-xl">
                   <div className="text-sm text-gray-500 mb-1">Efficiency Rating</div>
-                  <div className="text-lg md:text-xl font-medium text-gray-900">95%</div>
+                  <div className="text-lg md:text-xl font-medium text-gray-900">{roofRequirements?.efficiency || 95}%</div>
                 </div>
               </div>
 
@@ -994,7 +1292,9 @@ export default function SizingPage() {
                     </div>
                     <div>
                       <div className="text-sm font-medium text-emerald-800 mb-1">Battery Recommendation</div>
-                      <div className="text-sm text-emerald-700">13.5 kWh Powerwall for 85% energy independence</div>
+                      <div className="text-sm text-emerald-700">
+                        {batteryRecommendation?.recommended_capacity?.toFixed(1) || '13.5'} kWh battery for {Math.round((batteryRecommendation?.autonomy_days || 1) * 100)}% energy independence
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1004,7 +1304,7 @@ export default function SizingPage() {
                 <button 
                   className={`flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 ${savingQuote ? 'opacity-70 cursor-wait' : ''} ${quoteSaved ? 'bg-emerald-200' : ''}`}
                   onClick={saveQuote}
-                  disabled={savingQuote || quoteSaved}
+                  disabled={savingQuote || quoteSaved || recalculating}
                 >
                   <span className="font-medium">
                     {quoteSaved ? "Quote Saved!" : savingQuote ? "Saving..." : "Save Quote"}
