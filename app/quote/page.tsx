@@ -950,7 +950,7 @@ export default function SizingPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex justify-center mb-8 md:mb-10 overflow-x-auto scrollbar-hide">
+        {/* <div className="flex justify-center mb-8 md:mb-10 overflow-x-auto scrollbar-hide">
           <div className="bg-white rounded-xl flex p-1.5 shadow-lg border border-gray-100">
             {["Sizing", "Equipment", "Installation", "Monitoring"].map(
               (tab) => (
@@ -968,7 +968,7 @@ export default function SizingPage() {
               )
             )}
           </div>
-        </div>
+        </div> */}
 
         {/* Section Title */}
         <div className="mb-6 md:mb-8 text-center">
