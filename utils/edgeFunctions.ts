@@ -1,16 +1,42 @@
 import { supabase } from './supabase';
 
+/**
+ * Input for the system-sizing edge function
+ */
 export interface SystemSizingInput {
   monthlyUsage: number;
-  location?: string;
-  roofDirection?: string;
-  roofType?: string;
-  shading?: string;
+  location?: "Northern Pakistan" | "Central Pakistan" | "Southern Pakistan" | "Islamabad" | "Lahore" | "Karachi" | "Peshawar" | "Quetta";
+  roofDirection?: "south" | "southeast" | "southwest" | "east" | "west" | "north" | "northeast" | "northwest";
+  roofType?: "flat" | "standard" | "steep" | "optimal";
+  shading?: "none" | "minimal" | "moderate" | "significant";
   forceSize?: number;
 }
 
 /**
- * Edge Function Response Type
+ * Panel option in the system-sizing response
+ */
+export interface PanelOption {
+  brand: string;
+  power: number;
+  count: number;
+  roofArea: number;
+  totalCost: number;
+  defaultChoice: boolean;
+}
+
+/**
+ * Inverter option in the system-sizing response
+ */
+export interface InverterOption {
+  brand: string;
+  power: number;
+  count: number;
+  totalCost: number;
+  efficiencyRating?: number;
+}
+
+/**
+ * Full response from the system-sizing edge function
  */
 export interface SystemSizingResponse {
   systemSize: number;
@@ -29,17 +55,9 @@ export interface SystemSizingResponse {
     inverter: number;
   };
   equipment: {
-    panelOptions: Array<{
-      power: number;
-      count: number;
-      roofArea: number;
-      totalCost: number;
-    }>;
-    inverter: {
-      size: number;
-      count: number;
-      totalCost: number;
-    };
+    panelOptions: PanelOption[];
+    inverters: InverterOption[];
+    selectedInverter: InverterOption;
   };
   costs: {
     panels: number;
@@ -50,7 +68,7 @@ export interface SystemSizingResponse {
     installation: number;
     netMetering: number;
     transport: number;
-    accessories: number;
+    accessories?: number;
     total: number;
   };
   roof: {
@@ -98,9 +116,15 @@ export interface SystemSizingResponse {
   };
 }
 
+/**
+ * Calls the system-sizing edge function with the provided input
+ * @param input Parameters for the solar system sizing calculation
+ * @returns Detailed system sizing response with equipment, costs, and production estimates
+ */
 export async function calculateSystemSizing(input: SystemSizingInput): Promise<SystemSizingResponse> {
   try {
     console.log('Calling system-sizing edge function with input:', input);
+    
     const { data, error } = await supabase.functions.invoke('system-sizing', {
       body: input
     });
