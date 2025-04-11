@@ -1,5 +1,50 @@
 import { supabase } from './supabase';
 
+
+// Equipment combination interface
+export interface EquipmentCombination {
+  panelId: string;
+  inverterId: string;
+  costs: {
+    panels: number;
+    inverter: number;
+    dcCable: number;
+    acCable: number;
+    mounting: number;
+    installation: number;
+    netMetering: number;
+    transport: number;
+    accessories?: number;
+    total: number;
+  };
+  roof: {
+    required_area: number;
+    layout_efficiency: number;
+    optimal_orientation: string;
+    shading_impact: number;
+  };
+}
+
+export interface PanelOption {
+  brand: string;
+  power: number;
+  count: number;
+  roofArea: number;
+  totalCost: number;
+  defaultChoice: boolean;
+  pricePerUnit: number;
+}
+
+export interface InverterOption {
+  brand: string;
+  power: number;
+  count: number;
+  totalCost: number;
+  efficiencyRating?: number;
+  pricePerUnit: number;
+}
+
+
 /**
  * Input for the system-sizing edge function
  */
@@ -12,28 +57,6 @@ export interface SystemSizingInput {
   forceSize?: number;
 }
 
-/**
- * Panel option in the system-sizing response
- */
-export interface PanelOption {
-  brand: string;
-  power: number;
-  count: number;
-  roofArea: number;
-  totalCost: number;
-  defaultChoice: boolean;
-}
-
-/**
- * Inverter option in the system-sizing response
- */
-export interface InverterOption {
-  brand: string;
-  power: number;
-  count: number;
-  totalCost: number;
-  efficiencyRating?: number;
-}
 
 /**
  * Full response from the system-sizing edge function
@@ -58,6 +81,11 @@ export interface SystemSizingResponse {
     panelOptions: PanelOption[];
     inverters: InverterOption[];
     selectedInverter: InverterOption;
+    combinations: EquipmentCombination[];
+    defaultCombination: {
+      panelId: string;
+      inverterId: string;
+    };
   };
   costs: {
     panels: number;
@@ -124,16 +152,16 @@ export interface SystemSizingResponse {
 export async function calculateSystemSizing(input: SystemSizingInput): Promise<SystemSizingResponse> {
   try {
     console.log('Calling system-sizing edge function with input:', input);
-    
+
     const { data, error } = await supabase.functions.invoke('system-sizing', {
       body: input
     });
-    
+
     if (error) {
       console.error('Error invoking system-sizing function:', error);
       throw new Error(`Failed to calculate system sizing: ${error.message}`);
     }
-    
+
     console.log('Received response from system-sizing edge function');
     return data as SystemSizingResponse;
   } catch (err) {
