@@ -481,7 +481,7 @@ serve(async (req)=>{
         required_area: selectedPanelOption.roofArea,
         layout_efficiency: roofEfficiency * 100,
         optimal_orientation: roofDirection,
-        shading_impact: (1 - shadingFactor) * 100
+        shading_impact: Math.round((1 - shadingFactor) * 100)
       },
       battery: {
         recommended_capacity: input.monthlyUsage * 0.3, // 30% of monthly usage
