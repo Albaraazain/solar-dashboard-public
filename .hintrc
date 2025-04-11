@@ -3,6 +3,6 @@
     "development"
   ],
   "hints": {
-    "axe/aria": "off"
+    "axe/name-role-value": "off"
   }
 }
