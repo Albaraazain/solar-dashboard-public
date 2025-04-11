@@ -38,6 +38,7 @@ import {
 } from "@/utils/supabase";
 import {
   calculateSystemSizing,
+  EquipmentCombination,
   SystemSizingInput,
   SystemSizingResponse,
 } from "@/utils/edgeFunctions";
@@ -88,6 +89,11 @@ export default function SizingPage() {
   const [savingQuote, setSavingQuote] = useState(false);
   const [quoteSaved, setQuoteSaved] = useState(false);
 
+  const [equipmentCombinations, setEquipmentCombinations] = useState<
+    EquipmentCombination[]
+  >([]);
+  const [selectedCombination, setSelectedCombination] =
+    useState<EquipmentCombination | null>(null);
   // Get the selected panel and inverter data
   const selectedPanel =
     panels.find((panel) => panel.id === selectedPanelType) || panels[0];
@@ -96,163 +102,109 @@ export default function SizingPage() {
     inverters[0];
   const selectedStructureType = structureTypes[0]; // Default to first structure type
 
-// Function to update costs based on UI selections
-const updateCostsBasedOnSelections = () => {
-  if (!selectedPanel || !selectedInverter || !sizingResult) return;
-
-  console.log("Updating costs based on UI selections");
-  console.log("Selected panel:", selectedPanel);
-  console.log("Selected inverter:", selectedInverter);
-
-  // Calculate panel costs
-  const panelCount = Math.ceil((systemSize * 1000) / selectedPanel.power);
-  const panelCost = panelCount * selectedPanel.price;
-
-  // Calculate inverter costs
-  const inverterCount = Math.ceil(systemSize / selectedInverter.power);
-  const inverterCost = inverterCount * selectedInverter.price;
-
-  // Calculate cable costs based on panel count
-  const roofArea = Math.round(panelCount * 1.8);
-  const cableLength = Math.ceil(Math.sqrt(roofArea) * 4);
-  const dcCableCost = cableLength * 300; // From BASE_COSTS.dcCablePerMeter
-  const acCableCost = cableLength * 400; // From BASE_COSTS.acCablePerMeter
-
-  // Calculate mounting costs
-  const mountingCost = panelCount * 8000; // From BASE_COSTS.mountingPerPanel
-
-  // Keep other costs from edge function or use defaults
-  const installationCost = sizingResult?.costs?.installation || 25000;
-  const netMeteringCost = sizingResult?.costs?.netMetering || 50000;
-  const transportCost = sizingResult?.costs?.transport || 15000;
-  const accessoriesCost = sizingResult?.costs?.accessories || 26000;
-
-  // Calculate total
-  const totalCost = panelCost + inverterCost + dcCableCost + acCableCost + 
-                  mountingCost + installationCost + netMeteringCost + transportCost + accessoriesCost;
-
-  // Update quote breakdown
-  const updatedBreakdown = {
-    panels: panelCost,
-    inverter: inverterCost,
-    structure: mountingCost,
-    dcCable: dcCableCost,
-    acCable: acCableCost,
-    accessories: accessoriesCost,
-    labor: installationCost,
-    transport: transportCost,
-    netMetering: netMeteringCost,
-    total: totalCost
-  };
-
-  console.log("Updated cost breakdown:", updatedBreakdown);
-  setQuoteBreakdown(updatedBreakdown);
-  setQuoteTotal(totalCost);
-};
-  const updateEquipmentOptions = (result: SystemSizingResponse) => {
-    if (result?.equipment?.panelOptions?.length > 0) {
-      // Remember current panel selection
-      const currentPanelBrand = selectedPanel?.brand;
-      const currentPanelPower = selectedPanel?.power;
-
-      // Convert panel options from edge function to match your Panel interface
-      const panelOptions = result.equipment.panelOptions.map((option) => ({
-        id: `panel-${option.brand}-${option.power}`, // Create a unique ID
-        brand: option.brand,
-        power: option.power,
-        price: option.totalCost / option.count, // Calculate per-panel price
-        default_choice: option.defaultChoice,
-        availability: true,
-      }));
-
-      // Update panels state
-      setPanels(panelOptions);
-
-      // Try to find the currently selected panel in the new options
-      if (currentPanelBrand && currentPanelPower) {
-        const matchingPanel = panelOptions.find(
-          (p) => p.brand === currentPanelBrand && p.power === currentPanelPower
-        );
-
-        // If found, keep the selection, otherwise use default or first
-        if (matchingPanel) {
-          setSelectedPanelType(matchingPanel.id);
-        } else {
-          const defaultPanel =
-            panelOptions.find((p) => p.default_choice) || panelOptions[0];
-          if (defaultPanel) {
-            setSelectedPanelType(defaultPanel.id);
-          }
-        }
-      } else {
-        // Initial selection (no existing selection)
-        const defaultPanel =
-          panelOptions.find((p) => p.default_choice) || panelOptions[0];
-        if (defaultPanel) {
-          setSelectedPanelType(defaultPanel.id);
-        }
-      }
+  // Function to update costs based on UI selections
+  const updateCostsBasedOnSelection = () => {
+    if (
+      !selectedPanelType ||
+      !selectedInverterType ||
+      !equipmentCombinations.length
+    ) {
+      return;
     }
 
+    // Find the combination for the current selections
+    const combination = equipmentCombinations.find(
+      (combo) =>
+        combo.panelId === selectedPanelType &&
+        combo.inverterId === selectedInverterType
+    );
+
+    if (combination) {
+      console.log("Found equipment combination:", combination);
+
+      // Update all states based on this combination
+      setSelectedCombination(combination);
+
+      // Update costs
+      setQuoteBreakdown(combination.costs);
+      setQuoteTotal(combination.costs.total);
+
+      // Update roof requirements
+      setRoofRequirements({
+        area: combination.roof.required_area,
+        efficiency: combination.roof.layout_efficiency,
+        orientation: combination.roof.optimal_orientation,
+        shading: combination.roof.shading_impact,
+      });
+    } else {
+      console.warn(
+        "No matching combination found for",
+        selectedPanelType,
+        selectedInverterType
+      );
+    }
+  };
+  const updateEquipmentOptions = (
+    result: SystemSizingResponse,
+    preserveSelection: boolean = false
+  ) => {
+    // Store previous selections if we want to preserve them
+    const currentPanelType = preserveSelection ? selectedPanelType : null;
+    const currentInverterType = preserveSelection ? selectedInverterType : null;
+
+    // Process panel options
+    if (result?.equipment?.panelOptions?.length > 0) {
+      // Store the panels from edge function
+      setPanels(
+        result.equipment.panelOptions.map((option) => ({
+          id: `panel-${option.brand}-${option.power}`,
+          brand: option.brand,
+          power: option.power,
+          price: option.pricePerUnit,
+          default_choice: option.defaultChoice,
+          availability: true,
+        }))
+      );
+    }
+
+    // Process inverter options
     if (result?.equipment?.inverters?.length > 0) {
-      // Remember current inverter selection
-      const currentInverterBrand = selectedInverter?.brand;
-      const currentInverterPower = selectedInverter?.power;
+      // Store the inverters from edge function
+      setInverters(
+        result.equipment.inverters.map((option) => ({
+          id: `inverter-${option.brand}-${option.power}`,
+          brand: option.brand,
+          power: option.power,
+          price: option.pricePerUnit,
+          availability: true,
+        }))
+      );
+    }
 
-      // Convert inverter options from edge function to match your Inverter interface
-      const inverterOptions = result.equipment.inverters.map((option) => ({
-        id: `inverter-${option.brand}-${option.power}`, // Create a unique ID
-        brand: option.brand,
-        power: option.power,
-        price: option.totalCost / option.count, // Calculate per-inverter price
-        availability: true,
-      }));
+    // Store combination data
+    if (result?.equipment?.combinations) {
+      setEquipmentCombinations(result.equipment.combinations);
+    }
 
-      // Update inverters state
-      setInverters(inverterOptions);
+    // Only set default selections if we're not preserving user selection
+    if (!preserveSelection && result?.equipment?.defaultCombination) {
+      setSelectedPanelType(result.equipment.defaultCombination.panelId);
+      setSelectedInverterType(result.equipment.defaultCombination.inverterId);
+    } else if (preserveSelection) {
+      // Restore user selections if panel/inverter still exists in the new options
+      if (currentPanelType && panels.some((p) => p.id === currentPanelType)) {
+        setSelectedPanelType(currentPanelType);
+      } else if (result?.equipment?.defaultCombination) {
+        setSelectedPanelType(result.equipment.defaultCombination.panelId);
+      }
 
-      // Try to find the currently selected inverter in the new options
-      if (currentInverterBrand && currentInverterPower) {
-        const matchingInverter = inverterOptions.find(
-          (inv) =>
-            inv.brand === currentInverterBrand &&
-            inv.power === currentInverterPower
-        );
-
-        // If found, keep the selection
-        if (matchingInverter) {
-          setSelectedInverterType(matchingInverter.id);
-        } else {
-          // Otherwise try to match the selected inverter from the response
-          if (result.equipment.selectedInverter) {
-            const selectedInverterId = `inverter-${result.equipment.selectedInverter.brand}-${result.equipment.selectedInverter.power}`;
-            const matchingResponseInverter = inverterOptions.find(
-              (inv) => inv.id === selectedInverterId
-            );
-            if (matchingResponseInverter) {
-              setSelectedInverterType(matchingResponseInverter.id);
-            } else if (inverterOptions.length > 0) {
-              setSelectedInverterType(inverterOptions[0].id);
-            }
-          } else if (inverterOptions.length > 0) {
-            setSelectedInverterType(inverterOptions[0].id);
-          }
-        }
-      } else {
-        // Initial selection (no existing selection)
-        if (result.equipment.selectedInverter) {
-          const selectedInverterId = `inverter-${result.equipment.selectedInverter.brand}-${result.equipment.selectedInverter.power}`;
-          const matchingInverter = inverterOptions.find(
-            (inv) => inv.id === selectedInverterId
-          );
-          if (matchingInverter) {
-            setSelectedInverterType(matchingInverter.id);
-          } else if (inverterOptions.length > 0) {
-            setSelectedInverterType(inverterOptions[0].id);
-          }
-        } else if (inverterOptions.length > 0) {
-          setSelectedInverterType(inverterOptions[0].id);
-        }
+      if (
+        currentInverterType &&
+        inverters.some((i) => i.id === currentInverterType)
+      ) {
+        setSelectedInverterType(currentInverterType);
+      } else if (result?.equipment?.defaultCombination) {
+        setSelectedInverterType(result.equipment.defaultCombination.inverterId);
       }
     }
   };
@@ -295,7 +247,9 @@ const updateCostsBasedOnSelections = () => {
       setWeatherData({
         sunHours:
           result.weather?.sunHours || result.production?.peakSunHours || 5.2,
-        efficiency: Math.round(result.efficiencyFactors?.systemEfficiency || 92),
+        efficiency: Math.round(
+          result.efficiencyFactors?.systemEfficiency || 92
+        ),
         temperatureImpact: result.weather?.temperatureImpact || 9,
         annualProduction:
           result.production?.annual || Math.round(systemSize * 1460),
@@ -393,7 +347,9 @@ const updateCostsBasedOnSelections = () => {
           sizingResult.weather?.sunHours ||
           sizingResult.production?.peakSunHours ||
           5.2,
-        efficiency: Math.round(sizingResult.efficiencyFactors?.systemEfficiency || 92),
+        efficiency: Math.round(
+          sizingResult.efficiencyFactors?.systemEfficiency || 92
+        ),
         temperatureImpact: sizingResult.efficiencyFactors?.temperature || 9,
         annualProduction:
           sizingResult.production?.annual || Math.round(size * 1460),
@@ -515,7 +471,9 @@ const updateCostsBasedOnSelections = () => {
       setWeatherData({
         sunHours:
           result.weather?.sunHours || result.production?.peakSunHours || 5.2,
-        efficiency: Math.round(result.efficiencyFactors?.systemEfficiency || 92),
+        efficiency: Math.round(
+          result.efficiencyFactors?.systemEfficiency || 92
+        ),
         temperatureImpact: result.efficiencyFactors?.temperature || 9,
         annualProduction:
           result.production?.annual || Math.round(result.systemSize * 1460),
@@ -582,7 +540,7 @@ const updateCostsBasedOnSelections = () => {
     recalculateWithSize(newSize);
   };
 
-  // Save quote to Supabase
+  // send quote to whatsapp
   const saveQuote = async () => {
     console.log(
       "Saving quote with billId:",
@@ -593,7 +551,7 @@ const updateCostsBasedOnSelections = () => {
       systemSize
     );
     if (!billId || !quoteTotal) {
-      setError("Cannot save quote: Missing bill data or quote calculation");
+      setError("Cannot send quote to whatsapp: Missing bill data or quote calculation");
       return;
     }
 
@@ -614,7 +572,7 @@ const updateCostsBasedOnSelections = () => {
         setQuoteSaved(true);
         setTimeout(() => setQuoteSaved(false), 3000);
       } else {
-        throw new Error("Failed to save quote");
+        throw new Error("Failed to send quote to whatsapp");
       }
     } catch (err) {
       console.error("Error saving quote:", (err as Error).message);
@@ -687,6 +645,11 @@ const updateCostsBasedOnSelections = () => {
               const result = await calculateSystemSizing(input);
               setSizingResult(result);
 
+              // Store the combinations
+              if (result?.equipment?.combinations) {
+                setEquipmentCombinations(result.equipment.combinations);
+              }
+
               // Update equipment options from edge function response
               updateEquipmentOptions(result);
 
@@ -707,7 +670,9 @@ const updateCostsBasedOnSelections = () => {
                   result.weather?.sunHours ||
                   result.production?.peakSunHours ||
                   5.2,
-                efficiency: Math.round(result.efficiencyFactors?.systemEfficiency || 92),
+                efficiency: Math.round(
+                  result.efficiencyFactors?.systemEfficiency || 92
+                ),
                 temperatureImpact: result.efficiencyFactors?.temperature || 9,
                 annualProduction:
                   result.production?.annual ||
@@ -794,27 +759,25 @@ const updateCostsBasedOnSelections = () => {
   }, []);
 
   // Recalculate when panel or inverter type changes
-// Effect to update costs when panel/inverter selection changes
-useEffect(() => {
-  if (selectedPanel && selectedInverter && sizingResult) {
-    updateCostsBasedOnSelections();
-  }
-}, [selectedPanel, selectedInverter]);
+  // Effect to update costs when panel/inverter selection changes
+  useEffect(() => {
+    if (selectedPanel && selectedInverter && sizingResult) {
+      updateCostsBasedOnSelection();
+    }
+  }, [selectedPanel, selectedInverter]);
   useEffect(() => {
     const updateQuote = async () => {
       if (selectedPanelType && selectedInverterType && !recalculating) {
+        // Only recalculate with API when system size changes, not equipment
         if (userAdjustedSize) {
-          // If user adjusted size, recalculate with forced size
           recalculateWithSize(systemSize);
-        } else {
-          // Otherwise calculate with recommended size
-          const total = await calculateQuoteTotal();
-          setQuoteTotal(total);
         }
+        // No need for additional API call for equipment changes
+        // Just update costs based on the pre-calculated combinations
+        updateCostsBasedOnSelection();
       }
     };
 
-updateCostsBasedOnSelections();
     updateQuote();
   }, [selectedPanelType, selectedInverterType]);
 
@@ -955,7 +918,7 @@ updateCostsBasedOnSelections();
                     ? "Quote Saved!"
                     : savingQuote
                     ? "Saving..."
-                    : "Save Quote"}
+                    : "send quote to whatsapp"}
                 </button>
                 <Link
                   href="/bill"
@@ -1860,7 +1823,7 @@ updateCostsBasedOnSelections();
                       ? "Quote Saved!"
                       : savingQuote
                       ? "Saving..."
-                      : "Save Quote"}
+                      : "send quote to whatsapp"}
                   </span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
