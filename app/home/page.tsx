@@ -111,6 +111,8 @@ export default function LandingPage() {
       // Date formatting helper
       const formatDate = (dateStr: string) => {
         if (!dateStr) return new Date().toISOString().split('T')[0];
+        // Return ISO dates unchanged
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
         // Convert "25 MAR 25" format to "2025-03-25"
         const [day, monthRaw, yearRaw] = dateStr.split(' ');
         const monthMap: { [key: string]: string } = {
