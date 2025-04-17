@@ -659,45 +659,15 @@ export default function BillsPage() {
                       </p>
                     </div>
 
-                    {/* Bill Table */}
-                    <div className="overflow-x-auto -mx-3 sm:mx-0">
-                      <div className="inline-block min-w-full align-middle">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead>
-                            <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              <th className="py-2 sm:py-3 px-2 sm:px-4">Description</th>
-                              <th className="py-2 sm:py-3 px-2 sm:px-4">Units</th>
-                              <th className="py-2 sm:py-3 px-2 sm:px-4">Rate</th>
-                              <th className="py-2 sm:py-3 px-2 sm:px-4 text-right">Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {billData.items?.map((item, index) => (
-                              <tr key={index} className="text-xs sm:text-sm text-gray-600">
-                                <td className="py-3 sm:py-4 px-2 sm:px-4">{item.description}</td>
-                                <td className="py-3 sm:py-4 px-2 sm:px-4">{item.units}</td>
-                                <td className="py-3 sm:py-4 px-2 sm:px-4">{item.rate}</td>
-                                <td className="py-3 sm:py-4 px-2 sm:px-4 text-right">{formatCurrency(item.amount)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
                     {/* Summary */}
                     <div className="space-y-2 pt-3 sm:pt-4 border-t border-gray-200">
                       <div className="flex justify-between text-xs sm:text-sm">
-                        <span className="text-gray-600">Subtotal</span>
-                        <span className="text-gray-800 font-medium">{formatCurrency(billData.amount)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs sm:text-sm">
-                        <span className="text-gray-600">Tax ({formatNumber(billData.taxRate, 1)}%)</span>
-                        <span className="text-gray-800 font-medium">{formatCurrency(billData.taxAmount)}</span>
+                        <span className="text-gray-600">Units Consumed</span>
+                        <span className="text-gray-800 font-medium">{billData.unitsConsumed}</span>
                       </div>
                       <div className="flex justify-between text-sm sm:text-base font-semibold pt-2 border-t border-gray-200">
                         <span>Total Due</span>
-                        <span className="text-emerald-600">{formatCurrency(billData.totalAmount)}</span>
+                        <span className="text-emerald-600">{formatCurrency(billData.amount)}</span>
                       </div>
                     </div>
 
