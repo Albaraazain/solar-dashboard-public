@@ -950,25 +950,24 @@ export default function SizingPage() {
         </div>
 
         {/* Tabs */}
-        {/* <div className="flex justify-center mb-8 md:mb-10 overflow-x-auto scrollbar-hide">
+        {/* Mobile-only tabs */}
+        <div className="flex justify-center mb-8 md:mb-10 overflow-x-auto scrollbar-hide md:hidden">
           <div className="bg-white rounded-xl flex p-1.5 shadow-lg border border-gray-100">
-            {["Sizing", "Equipment", "Installation", "Monitoring"].map(
-              (tab) => (
-                <button
-                  key={tab}
-                  className={`px-4 sm:px-6 py-2 sm:py-2.5 text-sm rounded-lg transition-all whitespace-nowrap ${
-                    activeTab === tab
-                      ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md"
-                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                  }`}
-                  onClick={() => setActiveTab(tab)}
-                >
-                  {tab}
-                </button>
-              )
-            )}
+            {["Sizing", "Performance", "Financial"].map((tab) => (
+              <button
+                key={tab}
+                className={`px-4 sm:px-6 py-2 sm:py-2.5 text-sm rounded-lg transition-all whitespace-nowrap ${
+                  activeTab === tab
+                    ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md"
+                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                }`}
+                onClick={() => setActiveTab(tab)}
+              >
+                {tab}
+              </button>
+            ))}
           </div>
-        </div> */}
+        </div>
 
         {/* Section Title */}
         <div className="mb-6 md:mb-8 text-center">
@@ -982,7 +981,9 @@ export default function SizingPage() {
         </div>
 
         {/* Quote Total Summary Card */}
-        <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-100 mb-6 md:mb-8">
+        <div className={`bg-white rounded-2xl p-6 shadow-xl border border-gray-100 mb-6 md:mb-8 ${
+          activeTab !== "Financial" ? "hidden md:block" : ""
+        }`}>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h3 className="text-xl font-bold text-gray-800 mb-2">
@@ -1035,7 +1036,9 @@ export default function SizingPage() {
         {/* Dashboard Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 auto-rows-auto">
           {/* Energy Usage - 4 columns */}
-          <div className="md:col-span-4 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full">
+          <div className={`md:col-span-4 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full ${
+            activeTab !== "Performance" ? "hidden md:block" : ""
+          }`}>
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-100 to-transparent rounded-bl-full -mr-10 -mt-10 opacity-70"></div>
             <div className="relative">
               <div className="flex justify-between items-center mb-4 md:mb-6">
@@ -1100,7 +1103,9 @@ export default function SizingPage() {
           </div>
 
           {/* Recommended System Size - 4 columns */}
-          <div className="md:col-span-4 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full">
+          <div className={`md:col-span-4 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full ${
+            activeTab !== "Sizing" ? "hidden md:block" : ""
+          }`}>
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-100 to-transparent rounded-bl-full -mr-10 -mt-10 opacity-70"></div>
             <div className="relative">
               <div className="flex justify-between items-center mb-4 md:mb-6">
@@ -1199,7 +1204,9 @@ export default function SizingPage() {
           </div>
 
           {/* Weather & Production - 4 columns */}
-          <div className="md:col-span-4 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full">
+          <div className={`md:col-span-4 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full ${
+            activeTab !== "Performance" ? "hidden md:block" : ""
+          }`}>
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-100 to-transparent rounded-bl-full -mr-10 -mt-10 opacity-70"></div>
             <div className="relative">
               <div className="flex justify-between items-center mb-4 md:mb-6">
@@ -1612,7 +1619,9 @@ export default function SizingPage() {
           </div>
 
           {/* Quote Breakdown - 6 columns */}
-          <div className="md:col-span-6 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full">
+          <div className={`md:col-span-6 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full ${
+            activeTab !== "Financial" ? "hidden md:block" : ""
+          }`}>
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-100 to-transparent rounded-bl-full -mr-10 -mt-10 opacity-70"></div>
             <div className="relative">
               <div className="flex justify-between items-center mb-4 md:mb-6">
