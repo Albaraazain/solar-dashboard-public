@@ -129,17 +129,25 @@ export default async function ({ page, context }) {
   } catch (error) {
     console.error("Error:", error);
     // Fallback: return mock bill data when fetch fails
+    const unitsConsumed = Math.floor(Math.random() * 500) + 200;
+    const amount = (unitsConsumed * 15).toFixed(2);
+    const now = new Date();
+    const issueDate = now.toISOString().split('T')[0];
+    const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const monthlyUnits: Record<string, string> = {};
+    for (let i = 5; i >= 0; i--) {
+      const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = m.toLocaleString("en-US", { month: "short" });
+      const year = String(m.getFullYear()).slice(-2);
+      monthlyUnits[`${month}${year}`] = (Math.floor(Math.random() * 300) + 200).toString();
+    }
     const mockBill = {
       customerName: "Mock Customer",
-      amount: "0.00",
-      unitsConsumed: "0",
-      issueDate: "01 Jan 24",
-      dueDate: "15 Jan 24",
-      monthlyUnits: {
-        Jan24: "0", Feb24: "0", Mar24: "0", Apr24: "0",
-        May24: "0", Jun24: "0", Jul24: "0", Aug24: "0",
-        Sep24: "0", Oct24: "0", Nov24: "0", Dec24: "0"
-      }
+      amount,
+      unitsConsumed: unitsConsumed.toString(),
+      issueDate,
+      dueDate,
+      monthlyUnits,
     };
     return new Response(JSON.stringify(mockBill), {
       headers: {
