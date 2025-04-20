@@ -1036,7 +1036,7 @@ export default function SizingPage() {
         {/* Dashboard Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 auto-rows-auto">
           {/* Energy Usage - 4 columns */}
-          <div className={`md:col-span-4 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full ${
+          <div className={`md:col-span-6 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full ${
             activeTab !== "Performance" ? "hidden md:block" : ""
           }`}>
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-100 to-transparent rounded-bl-full -mr-10 -mt-10 opacity-70"></div>
@@ -1103,7 +1103,7 @@ export default function SizingPage() {
           </div>
 
           {/* Recommended System Size - 4 columns */}
-          <div className={`md:col-span-4 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full ${
+          <div className={`md:col-span-6 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full ${
             activeTab !== "Sizing" ? "hidden md:block" : ""
           }`}>
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-100 to-transparent rounded-bl-full -mr-10 -mt-10 opacity-70"></div>
@@ -1203,80 +1203,6 @@ export default function SizingPage() {
             </div>
           </div>
 
-          {/* Weather & Production - 4 columns */}
-          <div className={`md:col-span-4 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full ${
-            activeTab !== "Performance" ? "hidden md:block" : ""
-          }`}>
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-100 to-transparent rounded-bl-full -mr-10 -mt-10 opacity-70"></div>
-            <div className="relative">
-              <div className="flex justify-between items-center mb-4 md:mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="bg-emerald-100 p-2 rounded-lg">
-                    <CloudSun className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div className="font-semibold text-gray-800">
-                    Weather & Production
-                  </div>
-                </div>
-                <div className="text-gray-400 group-hover:text-emerald-500 transition-colors">
-                  <ChevronRight className="w-5 h-5" />
-                </div>
-              </div>
-
-              <div className="flex justify-between mb-4 md:mb-6">
-                <div className="text-center">
-                  <div className="text-3xl md:text-4xl font-bold text-gray-900">
-                    {weatherData?.sunHours || 5.2}
-                  </div>
-                  <div className="text-sm text-gray-500">Sun hours/day</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl md:text-4xl font-bold text-gray-900">
-                    {weatherData?.efficiency || 92}%
-                  </div>
-                  <div className="text-sm text-gray-500">Efficiency</div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 mb-4 md:mb-6">
-                <div className="bg-gray-50 p-2 md:p-3 rounded-lg text-center">
-                  <Cloud className="w-4 h-4 md:w-5 md:h-5 text-gray-400 mx-auto mb-1" />
-                  <div className="text-xs text-gray-500">Efficiency</div>
-                  <div className="text-xs md:text-sm font-medium">
-                    {weatherData?.efficiency || 92}%
-                  </div>
-                </div>
-                <div className="bg-gray-50 p-2 md:p-3 rounded-lg text-center">
-                  <ThermometerSun className="w-4 h-4 md:w-5 md:h-5 text-orange-400 mx-auto mb-1" />
-                  <div className="text-xs text-gray-500">Impact</div>
-                  <div className="text-xs md:text-sm font-medium">
-                    -{weatherData?.temperatureImpact || 9}%
-                  </div>
-                </div>
-                <div className="bg-gray-50 p-2 md:p-3 rounded-lg text-center">
-                  <Sun className="w-4 h-4 md:w-5 md:h-5 text-yellow-400 mx-auto mb-1" />
-                  <div className="text-xs text-gray-500">Sun Hours</div>
-                  <div className="text-xs md:text-sm font-medium">
-                    {weatherData?.sunHours || 5.2}/day
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                <div className="text-sm font-medium text-emerald-800 mb-2">
-                  Annual Production
-                </div>
-                <div className="text-xl md:text-2xl font-bold text-emerald-700">
-                  {weatherData?.annualProduction ||
-                    Math.round(systemSize * 1460)}{" "}
-                  kWh/year
-                </div>
-                <div className="text-xs text-emerald-600 mt-1">
-                  With {weatherData?.efficiency || 92}% system efficiency
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Panel Type Selection - 6 columns */}
           <div className="md:col-span-6 bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 overflow-hidden relative group hover:shadow-xl transition-all h-full">
