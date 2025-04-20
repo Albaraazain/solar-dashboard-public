@@ -236,7 +236,7 @@ export default function LandingPage() {
               <div className="text-xs text-gray-500">Smart Solar Sizing System</div>
             </div>
           </div>
-          <div className="flex gap-4 items-center">
+          {/* <div className="flex gap-4 items-center">
             <Link href="/about" className="text-sm text-gray-600 hover:text-emerald-600 transition-colors hidden md:block">
               About
             </Link>
@@ -246,7 +246,7 @@ export default function LandingPage() {
             <button className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg font-medium border border-emerald-100 hover:bg-emerald-100 transition-all">
               Sign In
             </button>
-          </div>
+          </div> */}
         </header>
 
         {/* Hero Section */}
@@ -279,8 +279,8 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-4 items-center">
-              <div className="text-sm text-gray-500">Trusted by leading providers:</div>
-              <div className="flex gap-4 items-center">
+              {/* <div className="text-sm text-gray-500">Trusted by leading providers:</div> */}
+              {/* <div className="flex gap-4 items-center">
                 <div className="bg-white p-2 rounded-lg shadow-sm">
                   <div className="w-16 h-6 bg-gray-200 rounded animate-pulse"></div>
                 </div>
@@ -290,7 +290,7 @@ export default function LandingPage() {
                 <div className="bg-white p-2 rounded-lg shadow-sm">
                   <div className="w-16 h-6 bg-gray-200 rounded animate-pulse"></div>
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
 
